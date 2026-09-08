@@ -1,0 +1,19 @@
+﻿# Windows / OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+
+# Binaries
+*.exe
+*.dll
+
+# IDE
+.vscode/
+.idea/
