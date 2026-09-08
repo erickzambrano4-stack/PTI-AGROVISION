@@ -2432,6 +2432,9 @@
             <div id="mob-lote-validation-msg">
               ✓ <b>13 dígitos</b> · 2ª letra corresponde al campo activo
             </div>
+            <button class="btn amber" id="mob-btn-fix-lote" type="button" style="display:none;width:100%;font-size:12px;padding:7px 10px;margin-top:8px;font-weight:700;border-radius:6px;cursor:pointer;">
+              ⚡ Auto-corregir lote
+            </button>
           </div>
 
           <!-- Official Campos 1-Tap Touch Buttons -->
@@ -3165,15 +3168,23 @@
 (function(){
   const $ = (id) => document.getElementById(id);
 
+  function getTodayIsoDate(){
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   // ---------------- OFFICIAL CAMPOS (A-G) & TRACEABILITY RULES ----------------
   const CAMPOS_OFICIALES = [
-    { letra: 'A', nombre: 'YASMINE', alias: ['YASMINE', 'YO-MERO', 'YOMERO'], muni: 'TECHALUTA DE MONTENEGRO JALISCO', ggn: '4063651943011' },
-    { letra: 'B', nombre: 'LUPITA', alias: ['LUPITA'], muni: 'TALA JALISCO', ggn: '4063651782738' },
-    { letra: 'C', nombre: 'ANITA', alias: ['ANITA'], muni: 'TALA JALISCO', ggn: '4063651782738' },
-    { letra: 'D', nombre: 'SORAYA', alias: ['SORAYA'], muni: 'TALA JALISCO', ggn: '4063651782738' },
-    { letra: 'E', nombre: 'OJO DE AGUA', alias: ['OJO DE AGUA', 'OJODEAGUA', 'AMEY'], muni: 'ESTIPAC JALISCO', ggn: '4063651943028' },
-    { letra: 'F', nombre: 'CENTIMETRO', alias: ['CENTIMETRO', 'CENTÍMETRO'], muni: 'TALA JALISCO', ggn: '4063651782738' },
-    { letra: 'G', nombre: 'LA CRUZ', alias: ['LA CRUZ', 'LACRUZ'], muni: 'TALA JALISCO', ggn: '4063651782738' }
+    { letra: 'A', up: '01', nombre: 'YASMINE', alias: ['YASMINE', 'YO-MERO', 'YOMERO', 'YO MERO'], muni: 'TECHALUTA DE MONTENEGRO JALISCO', ggn: '4063651943011', fda: '18543627422' },
+    { letra: 'B', up: '02', nombre: 'LUPITA', alias: ['LUPITA'], muni: 'TALA JALISCO', ggn: '4063651782738', fda: '18543627422' },
+    { letra: 'C', up: '03', nombre: 'ANITA', alias: ['ANITA'], muni: 'TALA JALISCO', ggn: '4063651782738', fda: '18543627422' },
+    { letra: 'D', up: '04', nombre: 'SORAYA', alias: ['SORAYA', 'SOMBRA'], muni: 'TALA JALISCO', ggn: '4063651782738', fda: '18543627422' },
+    { letra: 'E', up: '05', nombre: 'OJO DE AGUA', alias: ['OJO DE AGUA', 'OJODEAGUA', 'AMEY', 'OJO AGUA'], muni: 'ESTIPAC JALISCO', ggn: '4063651943028', fda: '18543627422' },
+    { letra: 'F', up: '06', nombre: 'CENTIMETRO', alias: ['CENTIMETRO', 'CENTÍMETRO', 'CENTIM'], muni: 'TALA JALISCO', ggn: '4063651782738', fda: '18543627422' },
+    { letra: 'G', up: '07', nombre: 'LA CRUZ', alias: ['LA CRUZ', 'LACRUZ'], muni: 'TALA JALISCO', ggn: '4063651782738', fda: '18543627422' }
   ];
 
   const MAPA_LETRA_A_CAMPO = {};
@@ -3251,7 +3262,9 @@
       const after = s.substring(fIdx + 1);
       const digits = after.match(/^[0-9]+/);
       if(digits){
-        const pos = fIdx + 1 + digits[0].length;
+        // In PTI lot structure (e.g. 6B13B09118058), 2nd letter is placed after 2 digits
+        const digLen = Math.min(2, digits[0].length);
+        const pos = fIdx + 1 + digLen;
         s = s.substring(0, pos) + tgt + s.substring(pos);
       } else {
         s = s + tgt;
@@ -3355,7 +3368,7 @@
     const v = validateLotCampoMatch();
     const curLen = (inLote && inLote.value) ? inLote.value.trim().length : 0;
 
-    // Actualizar insignia de longitud y texto de guía
+    // Actualizar contador y guía en escritorio
     if(lblLoteCounter){
       lblLoteCounter.textContent = `${curLen}/13 dígitos`;
       if(curLen === 13){
@@ -3388,117 +3401,88 @@
 
     // Highlight active campo tag in reference bar
     document.querySelectorAll('.campo-ref-tag').forEach(tag => {
-      if(tag.dataset.campo === v.expected.letra){
-        tag.classList.add('active');
-      } else {
-        tag.classList.remove('active');
-      }
+      tag.classList.toggle('active', tag.dataset.campo === v.expected.letra);
     });
 
-    if(!box || !msg) return;
-
-    if(v.valid){
-      box.className = 'lote-status-box lote-status-valid';
-      msg.innerHTML = `<span>&#10003; <b>13 dígitos</b> · 2ª letra '<b>${v.foundLetter}</b>' corresponde al campo <b>${v.expected.nombre}</b></span>`;
-      if(badge){
-        badge.textContent = `Lote OK (13d) [2ª: ${v.expected.letra}]`;
-        badge.style.background = '#132e1e';
-        badge.style.color = '#86efac';
-      }
-      if(btnFix) btnFix.style.display = 'none';
-      if(inLote){
-        inLote.style.borderColor = 'var(--green)';
-        inLote.style.boxShadow = '0 0 0 1px var(--green)';
-      }
-    } else if(v.lengthInvalid){
-      box.className = 'lote-status-box lote-status-warning';
-      msg.innerHTML = `<span>&#9888;&#65039; ${v.msg}</span>`;
-      if(badge){
-        badge.textContent = `Inválido (${curLen}/13d)`;
-        badge.style.background = '#3a2814';
-        badge.style.color = '#fde047';
-      }
-      if(btnFix && v.suggestedLote){
-        btnFix.style.display = 'inline-block';
-        btnFix.textContent = `⚡ Ajustar a 13 dígitos [Campo ${v.expected.letra}]`;
-        btnFix.onclick = ()=>{
-          inLote.value = v.suggestedLote;
-          updateLoteValidationUI();
-          renderPreview();
-          generateZPL();
-        };
-      } else if(btnFix){
-        btnFix.style.display = 'none';
-      }
-      if(inLote){
-        inLote.style.borderColor = 'var(--amber)';
-        inLote.style.boxShadow = '0 0 0 1px var(--amber)';
-      }
-    } else if(v.mismatch){
-      box.className = 'lote-status-box lote-status-invalid';
-      msg.innerHTML = `<span>&#9888;&#65039; Discrepancia: Campo activo es <b>${v.expected.nombre} [${v.expected.letra}]</b>, pero la 2ª letra del lote es '<b>${v.foundLetter}</b>' (${v.campoFound})</span>`;
-      if(badge){
-        badge.textContent = `Discrepancia [2ª: ${v.foundLetter} != ${v.expected.letra}]`;
-        badge.style.background = '#3f1917';
-        badge.style.color = '#fca5a5';
-      }
-      if(btnFix){
-        btnFix.style.display = 'inline-block';
-        btnFix.textContent = `⚡ Corregir a '${v.expected.letra}' (13 dígitos)`;
-        btnFix.onclick = ()=>{
-          inLote.value = v.suggestedLote;
-          updateLoteValidationUI();
-          renderPreview();
-          generateZPL();
-        };
-      }
-      if(inLote){
-        inLote.style.borderColor = 'var(--red)';
-        inLote.style.boxShadow = '0 0 0 1px var(--red)';
-      }
-    } else {
-      box.className = 'lote-status-box lote-status-warning';
-      msg.innerHTML = `<span>&#9888;&#65039; ${v.msg}</span>`;
-      if(badge){
-        badge.textContent = `Incompleto (${curLen}/13d)`;
-        badge.style.background = '#3a2814';
-        badge.style.color = '#fde047';
-      }
-      if(btnFix && v.suggestedLote){
-        btnFix.style.display = 'inline-block';
-        btnFix.textContent = `⚡ Ajustar lote a 13 dígitos`;
-        btnFix.onclick = ()=>{
-          inLote.value = v.suggestedLote;
-          updateLoteValidationUI();
-          renderPreview();
-          generateZPL();
-        };
-      } else if(btnFix){
-        btnFix.style.display = 'none';
-      }
-      if(inLote){
-        inLote.style.borderColor = 'var(--amber)';
-        inLote.style.boxShadow = '0 0 0 1px var(--amber)';
+    if(box && msg){
+      if(v.valid){
+        box.className = 'lote-status-box lote-status-valid';
+        msg.innerHTML = `<span>&#10003; <b>13 dígitos</b> · 2ª letra '<b>${v.foundLetter}</b>' corresponde al campo <b>${v.expected.nombre}</b></span>`;
+        if(badge){
+          badge.textContent = `Lote OK (13d) [2ª: ${v.expected.letra}]`;
+          badge.style.background = '#132e1e';
+          badge.style.color = '#86efac';
+        }
+        if(btnFix) btnFix.style.display = 'none';
+        if(inLote){
+          inLote.style.borderColor = 'var(--green)';
+          inLote.style.boxShadow = '0 0 0 1px var(--green)';
+        }
+      } else if(v.mismatch){
+        box.className = 'lote-status-box lote-status-invalid';
+        msg.innerHTML = `<span>&#9888;&#65039; Discrepancia: Campo activo es <b>${v.expected.nombre} [${v.expected.letra}]</b>, pero la 2ª letra del lote es '<b>${v.foundLetter}</b>' (${v.campoFound})</span>`;
+        if(badge){
+          badge.textContent = `Discrepancia [2ª: ${v.foundLetter} != ${v.expected.letra}]`;
+          badge.style.background = '#3f1917';
+          badge.style.color = '#fca5a5';
+        }
+        if(btnFix && v.suggestedLote){
+          btnFix.style.display = 'inline-block';
+          btnFix.textContent = `⚡ Corregir a '${v.expected.letra}' (13 dígitos)`;
+          btnFix.onclick = ()=>{
+            if($('in-lote')) $('in-lote').value = v.suggestedLote;
+            if($('mob-in-lote')) $('mob-in-lote').value = v.suggestedLote;
+            updateLoteValidationUI();
+            renderPreview();
+            generateZPL();
+          };
+        }
+        if(inLote){
+          inLote.style.borderColor = 'var(--red)';
+          inLote.style.boxShadow = '0 0 0 1px var(--red)';
+        }
+      } else {
+        box.className = 'lote-status-box lote-status-warning';
+        msg.innerHTML = `<span>&#9888;&#65039; ${v.msg}</span>`;
+        if(badge){
+          badge.textContent = `Incompleto (${curLen}/13d)`;
+          badge.style.background = '#3a2814';
+          badge.style.color = '#fde047';
+        }
+        if(btnFix && v.suggestedLote){
+          btnFix.style.display = 'inline-block';
+          btnFix.textContent = `⚡ Ajustar a 13 dígitos [Campo ${v.expected.letra}]`;
+          btnFix.onclick = ()=>{
+            if($('in-lote')) $('in-lote').value = v.suggestedLote;
+            if($('mob-in-lote')) $('mob-in-lote').value = v.suggestedLote;
+            updateLoteValidationUI();
+            renderPreview();
+            generateZPL();
+          };
+        } else if(btnFix){
+          btnFix.style.display = 'none';
+        }
+        if(inLote){
+          inLote.style.borderColor = 'var(--amber)';
+          inLote.style.boxShadow = '0 0 0 1px var(--amber)';
+        }
       }
     }
 
-    // Sync Mobile Validation UI
+    // Reactividad Completa en Móvil (Mobile UI Sync)
     const mobInLote = $('mob-in-lote');
     const mobBox = $('mob-lote-status-box');
     const mobMsg = $('mob-lote-validation-msg');
     const mobCounter = $('mob-lote-counter');
     const mobCampoActivo = $('mob-lbl-campo-activo');
+    const mobBtnFix = $('mob-btn-fix-lote');
 
     if(mobCampoActivo){
       mobCampoActivo.textContent = `Campo activo: ${v.expected.letra} (${v.expected.nombre})`;
     }
 
     document.querySelectorAll('.mob-campo-btn').forEach(btn => {
-      if(btn.dataset.campo === v.expected.letra){
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
+      btn.classList.toggle('active', btn.dataset.campo === v.expected.letra);
     });
 
     if(mobCounter){
@@ -3522,12 +3506,24 @@
           mobInLote.style.borderColor = 'var(--green)';
           mobInLote.style.boxShadow = '0 0 0 1px var(--green)';
         }
+        if(mobBtnFix) mobBtnFix.style.display = 'none';
       } else if(v.mismatch){
         mobBox.className = 'lote-status-box lote-status-invalid';
-        mobMsg.innerHTML = `⚠️ Discrepancia: Campo es <b>${v.expected.letra}</b> pero lote tiene <b>${v.foundLetter}</b>`;
+        mobMsg.innerHTML = `⚠️ Discrepancia: Campo es <b>${v.expected.letra} (${v.expected.nombre})</b> pero lote tiene '<b>${v.foundLetter}</b>'`;
         if(mobInLote){
           mobInLote.style.borderColor = 'var(--red)';
           mobInLote.style.boxShadow = '0 0 0 1px var(--red)';
+        }
+        if(mobBtnFix && v.suggestedLote){
+          mobBtnFix.style.display = 'block';
+          mobBtnFix.textContent = `⚡ Corregir a '${v.expected.letra}' (13 dígitos)`;
+          mobBtnFix.onclick = ()=>{
+            if($('in-lote')) $('in-lote').value = v.suggestedLote;
+            if($('mob-in-lote')) $('mob-in-lote').value = v.suggestedLote;
+            updateLoteValidationUI();
+            renderPreview();
+            generateZPL();
+          };
         }
       } else {
         mobBox.className = 'lote-status-box lote-status-warning';
@@ -3535,6 +3531,19 @@
         if(mobInLote){
           mobInLote.style.borderColor = 'var(--amber)';
           mobInLote.style.boxShadow = '0 0 0 1px var(--amber)';
+        }
+        if(mobBtnFix && v.suggestedLote){
+          mobBtnFix.style.display = 'block';
+          mobBtnFix.textContent = `⚡ Ajustar lote a 13 dígitos [Campo ${v.expected.letra}]`;
+          mobBtnFix.onclick = ()=>{
+            if($('in-lote')) $('in-lote').value = v.suggestedLote;
+            if($('mob-in-lote')) $('mob-in-lote').value = v.suggestedLote;
+            updateLoteValidationUI();
+            renderPreview();
+            generateZPL();
+          };
+        } else if(mobBtnFix){
+          mobBtnFix.style.display = 'none';
         }
       }
     }
@@ -3552,13 +3561,18 @@
         (v.suggestedLote ? `¿Deseas AUTO-AJUSTAR el lote a 13 dígitos ("${v.suggestedLote}") y continuar con la impresión?` : `Por favor ingresa un código de lote de exactamente 13 dígitos para poder imprimir.`)
       );
       if(fix && v.suggestedLote){
-        $('in-lote').value = v.suggestedLote;
+        if($('in-lote')) $('in-lote').value = v.suggestedLote;
+        if($('mob-in-lote')) $('mob-in-lote').value = v.suggestedLote;
         updateLoteValidationUI();
         renderPreview();
         generateZPL();
         return true;
       }
-      $('in-lote').focus();
+      if(window.innerWidth <= 768 && $('mob-in-lote')){
+        $('mob-in-lote').focus();
+      } else if($('in-lote')){
+        $('in-lote').focus();
+      }
       return false;
     }
 
@@ -3571,18 +3585,28 @@
         `¿Deseas CORREGIR automáticamente el lote a "${v.suggestedLote}" y continuar con la impresión?`
       );
       if(fix){
-        $('in-lote').value = v.suggestedLote;
+        if($('in-lote')) $('in-lote').value = v.suggestedLote;
+        if($('mob-in-lote')) $('mob-in-lote').value = v.suggestedLote;
         updateLoteValidationUI();
         renderPreview();
         generateZPL();
         return true;
+      }
+      if(window.innerWidth <= 768 && $('mob-in-lote')){
+        $('mob-in-lote').focus();
+      } else if($('in-lote')){
+        $('in-lote').focus();
       }
       return false;
     }
 
     if(v.empty || v.noSecondLetter){
       alert(`⚠️ ALERTA DE TRAZABILIDAD:\n${v.msg}\n\nPor favor ingresa un código de lote válido de exactamente 13 dígitos con la 2ª letra del campo para poder imprimir.`);
-      $('in-lote').focus();
+      if(window.innerWidth <= 768 && $('mob-in-lote')){
+        $('mob-in-lote').focus();
+      } else if($('in-lote')){
+        $('in-lote').focus();
+      }
       return false;
     }
 
@@ -3592,854 +3616,1603 @@
   // ---------------- OFFICIAL DATABASE CATALOG & EMBEDDED BACKUP ----------------
   // Respaldo maestro oficial con 44 registros de catÃ¡logo (15 columnas)
   const MASTER_DB_SEED = [
-    // --- UP: LUPITA (Codigo UP: B) ---
-    {
-      id: "lup-1",
-      formato: "12 Clamshells 4.4 (125g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543050",
-      pesoNeto: "125",
-      ean14: "10850022543057",
-      pesoCaja: "1500",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-2",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543067",
-      pesoNeto: "170",
-      ean14: "10850022543064",
-      pesoCaja: "2040",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-3",
-      formato: "12 Clamshells x 9.8 oz (278g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543043",
-      pesoNeto: "280",
-      ean14: "10850022543040",
-      pesoCaja: "3360",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-4",
-      formato: "12x11oz (5x7)",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "312",
-      ean14: "10850022543118",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-5",
-      formato: "8 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543005",
-      pesoNeto: "510",
-      ean14: "20850022543009",
-      pesoCaja: "5000",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-6",
-      formato: "BLUEBERRIES US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "1.5kg",
-      ean14: "00850022543118",
-      pesoCaja: "3500",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-7",
-      formato: "12 Clamshells x 1 Dry Pint (551ml) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543012",
-      pesoNeto: "551 ml",
-      ean14: "20850022543016",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-8",
-      formato: "12 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543036",
-      pesoNeto: "510",
-      ean14: "10850022543033",
-      pesoCaja: "6120",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-
-    // --- UP: YO-MERO (Codigo UP: A) ---
-    {
-      id: "ym-1",
-      formato: "12 Clamshells 4.4 (125g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543050",
-      pesoNeto: "125",
-      ean14: "10850022543057",
-      pesoCaja: "1500",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-2",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543067",
-      pesoNeto: "170",
-      ean14: "10850022543064",
-      pesoCaja: "2040",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-3",
-      formato: "12 Clamshells x 9.8 oz (278g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543043",
-      pesoNeto: "280",
-      ean14: "10850022543040",
-      pesoCaja: "3360",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-4",
-      formato: "12x11oz (5x7)",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "312",
-      ean14: "10850022543118",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-5",
-      formato: "8 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543005",
-      pesoNeto: "510",
-      ean14: "20850022543009",
-      pesoCaja: "5000",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-6",
-      formato: "BLUEBERRIES US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "1.5kg",
-      ean14: "00850022543118",
-      pesoCaja: "3500",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-7",
-      formato: "12 Clamshells x 1 Dry Pint (551ml) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543012",
-      pesoNeto: "551 ml",
-      ean14: "20850022543016",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "ym-8",
-      formato: "12 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543036",
-      pesoNeto: "510",
-      ean14: "10850022543033",
-      pesoCaja: "6120",
-      tipo: "Convencional",
-      codigoUP: "A",
-      unidad: "YO-MERO",
-      paisMuni: "TECHALUTA DE MONTENEGRO JALISCO",
-      ggn: "4063651943011",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-
-    // --- UP: AMEY (Codigo UP: E) ---
-    {
-      id: "am-1",
-      formato: "12 Clamshells 4.4 (125g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543050",
-      pesoNeto: "125",
-      ean14: "10850022543057",
-      pesoCaja: "1500",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-2",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543067",
-      pesoNeto: "170",
-      ean14: "10850022543064",
-      pesoCaja: "2040",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-3",
-      formato: "12 Clamshells x 9.8 oz (278g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543043",
-      pesoNeto: "280",
-      ean14: "10850022543040",
-      pesoCaja: "3360",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-4",
-      formato: "12x11oz (5x7)",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "312",
-      ean14: "10850022543118",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-5",
-      formato: "8 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543005",
-      pesoNeto: "510",
-      ean14: "20850022543009",
-      pesoCaja: "5000",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-6",
-      formato: "BLUEBERRIES US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "1.5kg",
-      ean14: "00850022543118",
-      pesoCaja: "3500",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-7",
-      formato: "12 Clamshells x 1 Dry Pint (551ml) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543012",
-      pesoNeto: "551 ml",
-      ean14: "20850022543016",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "am-8",
-      formato: "12 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543036",
-      pesoNeto: "510",
-      ean14: "10850022543033",
-      pesoCaja: "6120",
-      tipo: "Convencional",
-      codigoUP: "E",
-      unidad: "AMEY",
-      paisMuni: "ESTIPAC JALISCO",
-      ggn: "4063651943028",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ejido Emiliano Zapata, Domicilio Conocido S/N, Col. Gil Preciado, C.P. 45740 Estipac, Villa Corona, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-
-    // --- UP: SOMBRA (Codigo UP: D) ---
-    {
-      id: "som-1",
-      formato: "12 Clamshells 4.4 (125g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543050",
-      pesoNeto: "125",
-      ean14: "10850022543057",
-      pesoCaja: "1500",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-2",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543067",
-      pesoNeto: "170",
-      ean14: "10850022543064",
-      pesoCaja: "2040",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-3",
-      formato: "12 Clamshells x 9.8 oz (278g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543043",
-      pesoNeto: "280",
-      ean14: "10850022543040",
-      pesoCaja: "3360",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-4",
-      formato: "12x11oz (5x7)",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "312",
-      ean14: "10850022543118",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-5",
-      formato: "8 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543005",
-      pesoNeto: "510",
-      ean14: "20850022543009",
-      pesoCaja: "5000",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-6",
-      formato: "BLUEBERRIES US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "1.5kg",
-      ean14: "00850022543118",
-      pesoCaja: "3500",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-7",
-      formato: "12 Clamshells x 1 Dry Pint (551ml) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543012",
-      pesoNeto: "551 ml",
-      ean14: "20850022543016",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "som-8",
-      formato: "12 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543036",
-      pesoNeto: "510",
-      ean14: "10850022543033",
-      pesoCaja: "6120",
-      tipo: "Convencional",
-      codigoUP: "D",
-      unidad: "SOMBRA",
-      paisMuni: "ACATLAN JALISCO",
-      ggn: "4063651943035",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Rancho Las Campaneras KM1, Camino al Zapote o AcatlÃ¡n, Jalisco, 45700",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-
-    // --- UP: OJO DE AGUA (Codigo UP: P) ---
-    {
-      id: "oa-1",
-      formato: "12 Clamshells 4.4 (125g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543050",
-      pesoNeto: "125",
-      ean14: "10850022543057",
-      pesoCaja: "1500",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-2",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543067",
-      pesoNeto: "170",
-      ean14: "10850022543064",
-      pesoCaja: "2040",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-3",
-      formato: "12 Clamshells x 9.8 oz (278g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543043",
-      pesoNeto: "280",
-      ean14: "10850022543040",
-      pesoCaja: "3360",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-4",
-      formato: "12x11oz (5x7)",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "312",
-      ean14: "10850022543118",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-5",
-      formato: "8 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543005",
-      pesoNeto: "510",
-      ean14: "20850022543009",
-      pesoCaja: "5000",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-6",
-      formato: "BLUEBERRIES US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543111",
-      pesoNeto: "1.5kg",
-      ean14: "00850022543118",
-      pesoCaja: "3500",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-7",
-      formato: "12 Clamshells x 1 Dry Pint (551ml) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543012",
-      pesoNeto: "551 ml",
-      ean14: "20850022543016",
-      pesoCaja: "3744",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "oa-8",
-      formato: "12 Clamshells x 18 oz (510g) / US #1",
-      especie: "ARANDANO",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543036",
-      pesoNeto: "510",
-      ean14: "10850022543033",
-      pesoCaja: "6120",
-      tipo: "Convencional",
-      codigoUP: "P",
-      unidad: "OJO DE AGUA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651943042",
-      fda: "18543627422",
-      exportador: "Agro Sol de Mexico, S. de R.L. de C.V.",
-      direccion: "Ojo de agua S/N Zanja de Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-
-    // --- BERRIES ESPECIALES: UP LUPITA (B) ---
-    {
-      id: "lup-rasp-1",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "Raspberries/Framboise",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543159",
-      pesoNeto: "170 g",
-      ean14: "10850022543156",
-      pesoCaja: "1700",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-rasp-2",
-      formato: "8 Clamshells x 12 oz (340g) / US #1",
-      especie: "Raspberries/Framboise",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543166",
-      pesoNeto: "340 g",
-      ean14: "10850022543163",
-      pesoCaja: "3400",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-black-1",
-      formato: "12 Clamshells x 6 oz (170g) / US #1",
-      especie: "Blackberries/MÃ»res",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543135",
-      pesoNeto: "170 g",
-      ean14: "10850022543132",
-      pesoCaja: "1700",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    },
-    {
-      id: "lup-black-2",
-      formato: "8 Clamshells x 12 oz (340g) / US #1",
-      especie: "Blackberries/MÃ»res",
-      etiqueta: "The Fruitist",
-      ean12_13: "850022543142",
-      pesoNeto: "340 g",
-      ean14: "10850022543149",
-      pesoCaja: "3400",
-      tipo: "Convencional",
-      codigoUP: "B",
-      unidad: "LUPITA",
-      paisMuni: "TALA JALISCO",
-      ggn: "4063651782738",
-      fda: "18543627422",
-      exportador: "AGSOLO S.A.P.I. DE C.V.",
-      direccion: "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
-      distribuido: "The Fruitist Company, Los Angeles, CA 90067"
-    }
-  ];
+  {
+    "id": "yas-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "yas-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "A",
+    "unidad": "YASMINE",
+    "paisMuni": "TECHALUTA DE MONTENEGRO JALISCO",
+    "ggn": "4063651943011",
+    "fda": "18543627422",
+    "exportador": "Agro Sol de Mexico, S. de R.L. de C.V.",
+    "direccion": "Carretera libre a Techaluta KM 44.5, Techaluta de Montenegro, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "lup-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "B",
+    "unidad": "LUPITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "ani-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "C",
+    "unidad": "ANITA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "sor-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "D",
+    "unidad": "SORAYA",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "oa-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "E",
+    "unidad": "OJO DE AGUA",
+    "paisMuni": "ESTIPAC JALISCO",
+    "ggn": "4063651943028",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Carretera Santa Ines Mazatepec a Estipac KM 5.5, Estipac, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "cen-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "F",
+    "unidad": "CENTIMETRO",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-1",
+    "formato": "12 Clamshells 4.4 (125g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543050",
+    "pesoNeto": "125",
+    "ean14": "10850022543057",
+    "pesoCaja": "1500",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-2",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543067",
+    "pesoNeto": "170",
+    "ean14": "10850022543064",
+    "pesoCaja": "2040",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-3",
+    "formato": "12 Clamshells x 9.8 oz (278g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543043",
+    "pesoNeto": "280",
+    "ean14": "10850022543040",
+    "pesoCaja": "3360",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-4",
+    "formato": "12x11oz (5x7)",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "312",
+    "ean14": "10850022543118",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-5",
+    "formato": "8 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543005",
+    "pesoNeto": "510",
+    "ean14": "20850022543009",
+    "pesoCaja": "5000",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-6",
+    "formato": "BLUEBERRIES US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543111",
+    "pesoNeto": "1.5kg",
+    "ean14": "00850022543118",
+    "pesoCaja": "3500",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-7",
+    "formato": "12 Clamshells x 1 Dry Pint (551ml) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543012",
+    "pesoNeto": "551 ml",
+    "ean14": "20850022543016",
+    "pesoCaja": "3744",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-8",
+    "formato": "12 Clamshells x 18 oz (510g) / US #1",
+    "especie": "ARANDANO",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543036",
+    "pesoNeto": "510",
+    "ean14": "10850022543033",
+    "pesoCaja": "6120",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-rasp-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543159",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543156",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-rasp-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Raspberries/Framboise",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543166",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543163",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-black-1",
+    "formato": "12 Clamshells x 6 oz (170g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543135",
+    "pesoNeto": "170 g",
+    "ean14": "10850022543132",
+    "pesoCaja": "1700",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  },
+  {
+    "id": "crz-black-2",
+    "formato": "8 Clamshells x 12 oz (340g) / US #1",
+    "especie": "Blackberries/MÃ»res",
+    "etiqueta": "The Fruitist",
+    "ean12_13": "850022543142",
+    "pesoNeto": "340 g",
+    "ean14": "10850022543149",
+    "pesoCaja": "3400",
+    "tipo": "Convencional",
+    "codigoUP": "G",
+    "unidad": "LA CRUZ",
+    "paisMuni": "TALA JALISCO",
+    "ggn": "4063651782738",
+    "fda": "18543627422",
+    "exportador": "AGSOLO S.A.P.I. DE C.V.",
+    "direccion": "Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco",
+    "distribuido": "The Fruitist Company, Los Angeles, CA 90067"
+  }
+];
 
   // ---------------- STORAGE & LAYOUT KEYS ----------------
   const STORAGE_KEY = 'pti_master_db_records_v2';
@@ -4686,7 +5459,24 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if(raw !== null){
         const arr = JSON.parse(raw);
-        if(Array.isArray(arr) && arr.length > 0) return arr;
+        if(Array.isArray(arr) && arr.length > 0){
+          // Auto-merge: asegurar que todos los 7 campos oficiales (A - G) existan en masterDb
+          let missingAdded = false;
+          CAMPOS_OFICIALES.forEach(cDef => {
+            const hasCampo = arr.some(r => getExpectedCampo(r).letra === cDef.letra);
+            if(!hasCampo){
+              const seedForCampo = MASTER_DB_SEED.filter(s => getExpectedCampo(s).letra === cDef.letra);
+              if(seedForCampo.length > 0){
+                arr.push(...seedForCampo);
+                missingAdded = true;
+              }
+            }
+          });
+          if(missingAdded){
+            saveDb(arr);
+          }
+          return arr;
+        }
       }
     }catch(e){ console.error('Error reading localStorage primary', e); }
 
@@ -5814,7 +6604,8 @@
     if(curVal && masterDb.some(r => r.id === curVal)){
       sel.value = curVal;
     } else if(masterDb.length > 0) {
-      sel.value = masterDb[0].id;
+      const defLup = masterDb.find(r => getExpectedCampo(r).letra === 'B');
+      sel.value = defLup ? defLup.id : masterDb[0].id;
     }
 
     const mobSel = $('mob-sel-catalogo');
@@ -5888,15 +6679,19 @@
 
   let lastSelectedCampoLetter = 'B';
 
-  $('sel-catalogo').addEventListener('change', ()=>{
+  function onCatalogoRecordChange(){
     const rec = getSelectedRecord();
     const exp = getExpectedCampo(rec);
 
-    // Auto-update lot code letter if campo changed
+    // Auto-actualizar letra del lote si el campo cambió
     if(lastSelectedCampoLetter !== exp.letra){
-      const curLote = $('in-lote').value;
+      const inLote = $('in-lote');
+      const mobLote = $('mob-in-lote');
+      const curLote = (inLote && inLote.value) ? inLote.value : (mobLote && mobLote.value ? mobLote.value : '');
       if(curLote){
-        $('in-lote').value = replaceCampoLetterInLote(curLote, exp.letra);
+        const updated = replaceCampoLetterInLote(curLote, exp.letra);
+        if(inLote) inLote.value = updated;
+        if(mobLote) mobLote.value = updated;
       }
       lastSelectedCampoLetter = exp.letra;
     }
@@ -5910,7 +6705,67 @@
     updateLoteValidationUI();
     renderPreview();
     generateZPL();
-  });
+  }
+
+  $('sel-catalogo').addEventListener('change', onCatalogoRecordChange);
+
+  function selectOfficialCampo(campoLetter){
+    if(!campoLetter) return;
+    campoLetter = campoLetter.toUpperCase();
+    const campoDef = CAMPOS_OFICIALES.find(c => c.letra === campoLetter);
+    if(!campoDef) return;
+
+    // 1. Encontrar o generar registro en masterDb correspondiente a este campo
+    let targetRecord = null;
+    const curRec = getSelectedRecord();
+
+    if(curRec && curRec.formato){
+      targetRecord = masterDb.find(r => getExpectedCampo(r).letra === campoLetter && (r.formato === curRec.formato || r.ean14 === curRec.ean14));
+    }
+    if(!targetRecord){
+      targetRecord = masterDb.find(r => getExpectedCampo(r).letra === campoLetter);
+    }
+    if(!targetRecord){
+      const baseRec = curRec || masterDb[0] || SAMPLE_FALLBACK_RECORD;
+      const newId = 'campo-' + campoLetter.toLowerCase() + '-' + Date.now();
+      targetRecord = {
+        ...baseRec,
+        id: newId,
+        codigoUP: campoLetter,
+        unidad: campoDef.nombre,
+        paisMuni: campoDef.muni,
+        ggn: campoDef.ggn,
+        fda: campoDef.fda || (baseRec && baseRec.fda) || '18543627422',
+        exportador: (baseRec && baseRec.exportador) || 'AGSOLO S.A.P.I. DE C.V.',
+        direccion: (baseRec && baseRec.direccion) || 'Antiguo Camino Santa Ines Mazatepec KM3, Santa Ines Mazatepec, Tala, Jalisco',
+        distribuido: (baseRec && baseRec.distribuido) || 'The Fruitist Company, Los Angeles, CA 90067'
+      };
+      masterDb.push(targetRecord);
+      saveDb(masterDb);
+      refreshMasterSelector();
+    }
+
+    // 2. Establecer el registro en el selector de catálogo
+    if(targetRecord){
+      if($('sel-catalogo')) $('sel-catalogo').value = targetRecord.id;
+      if($('mob-sel-catalogo')) $('mob-sel-catalogo').value = targetRecord.id;
+    }
+
+    // 3. Actualizar la 2ª letra del lote tanto en in-lote como en mob-in-lote
+    const inLote = $('in-lote');
+    const mobLote = $('mob-in-lote');
+    let curLote = (inLote && inLote.value) ? inLote.value : (mobLote && mobLote.value ? mobLote.value : '');
+    const updatedLote = replaceCampoLetterInLote(curLote, campoLetter);
+    if(inLote) inLote.value = updatedLote;
+    if(mobLote) mobLote.value = updatedLote;
+    lastSelectedCampoLetter = campoLetter;
+
+    // 4. Actualizar toda la interfaz de usuario
+    updateSelectedRecordSummary();
+    updateLoteValidationUI();
+    renderPreview();
+    generateZPL();
+  }
 
   $('btn-edit-selected-record').addEventListener('click', ()=>{
     const rec = getSelectedRecord();
@@ -6502,35 +7357,39 @@
   }
 
   // Dynamic Lot validation & 13-digit restriction listeners
-  function enforce13DigitLoteInput(){
-    const inLote = $('in-lote');
-    if(!inLote) return;
-    let raw = (inLote.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  function handleLoteInputChange(e){
+    const source = e ? (e.target || e) : ($('in-lote') || $('mob-in-lote'));
+    if(!source) return;
+    let raw = (source.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if(raw.length > 13) raw = raw.slice(0, 13);
-    if(inLote.value !== raw) inLote.value = raw;
+    if(source.value !== raw) source.value = raw;
+
+    const inLote = $('in-lote');
+    const mobLote = $('mob-in-lote');
+    if(inLote && inLote.value !== raw) inLote.value = raw;
+    if(mobLote && mobLote.value !== raw) mobLote.value = raw;
+
     updateLoteValidationUI();
     renderPreview();
     generateZPL();
   }
 
-  $('in-lote').addEventListener('input', enforce13DigitLoteInput);
-  $('in-lote').addEventListener('paste', ()=>{
-    setTimeout(enforce13DigitLoteInput, 0);
-  });
+  const inLoteDesk = $('in-lote');
+  if(inLoteDesk){
+    inLoteDesk.addEventListener('input', handleLoteInputChange);
+    inLoteDesk.addEventListener('paste', ()=>{ setTimeout(()=> handleLoteInputChange(inLoteDesk), 0); });
+  }
+
+  const inLoteMob = $('mob-in-lote');
+  if(inLoteMob){
+    inLoteMob.addEventListener('input', handleLoteInputChange);
+    inLoteMob.addEventListener('paste', ()=>{ setTimeout(()=> handleLoteInputChange(inLoteMob), 0); });
+  }
 
   document.querySelectorAll('.campo-ref-tag').forEach(tag => {
     tag.addEventListener('click', ()=>{
       const cLetra = tag.dataset.campo;
-      const matching = masterDb.find(r => getExpectedCampo(r).letra === cLetra);
-      if(matching){
-        $('sel-catalogo').value = matching.id;
-        $('sel-catalogo').dispatchEvent(new Event('change'));
-      } else {
-        $('in-lote').value = replaceCampoLetterInLote($('in-lote').value, cLetra);
-        updateLoteValidationUI();
-        renderPreview();
-        generateZPL();
-      }
+      selectOfficialCampo(cLetra);
     });
   });
 
@@ -6549,11 +7408,17 @@
     if(el){
       el.addEventListener('input', (e)=>{
         if(id === 'in-size') e.target.value = e.target.value.toUpperCase();
+        if(id === 'in-packdate' && $('mob-in-packdate') && $('mob-in-packdate').value !== e.target.value){
+          $('mob-in-packdate').value = e.target.value;
+        }
         renderPreview();
         generateZPL();
       });
       el.addEventListener('change', (e)=>{
         if(id === 'in-size') e.target.value = e.target.value.toUpperCase();
+        if(id === 'in-packdate' && $('mob-in-packdate') && $('mob-in-packdate').value !== e.target.value){
+          $('mob-in-packdate').value = e.target.value;
+        }
         renderPreview();
         generateZPL();
       });
@@ -9034,8 +9899,11 @@ ${qtyCmd}
     // 3. Sync Packdate
     const inPackDesk = $('in-packdate');
     const inPackMob = $('mob-in-packdate');
+    if(inPackDesk && !inPackDesk.value){
+      inPackDesk.value = getTodayIsoDate();
+    }
     if(inPackDesk && inPackMob){
-      inPackMob.value = inPackDesk.value;
+      inPackMob.value = inPackDesk.value || getTodayIsoDate();
     }
 
     // 4. Sync Size
@@ -9172,46 +10040,24 @@ ${qtyCmd}
     // 6. Mobile Packdate
     const inMobPack = $('mob-in-packdate');
     if(inMobPack){
-      inMobPack.addEventListener('change', (e)=>{
-        if($('in-packdate')){
+      const handleMobDateChange = (e)=>{
+        if($('in-packdate') && $('in-packdate').value !== e.target.value){
           $('in-packdate').value = e.target.value;
-          $('in-packdate').dispatchEvent(new Event('change'));
+          renderPreview();
+          generateZPL();
         }
-      });
+      };
+      inMobPack.addEventListener('change', handleMobDateChange);
+      inMobPack.addEventListener('input', handleMobDateChange);
     }
 
-    // 7. Mobile Lote
-    const inMobLote = $('mob-in-lote');
-    if(inMobLote){
-      inMobLote.addEventListener('input', (e)=>{
-        const val = e.target.value.toUpperCase();
-        e.target.value = val;
-        if($('in-lote')){
-          $('in-lote').value = val;
-          $('in-lote').dispatchEvent(new Event('input'));
-        }
-      });
-    }
+    // 7. Mobile Lote manejado bidireccionalmente por handleLoteInputChange arriba
 
     // 8. Mobile Campo 1-Tap Buttons
     document.querySelectorAll('.mob-campo-btn').forEach(btn => {
       btn.addEventListener('click', ()=>{
         const campoLetter = btn.dataset.campo;
-        const matching = masterDb.find(r => getExpectedCampo(r).letra === campoLetter);
-        if(matching){
-          $('sel-catalogo').value = matching.id;
-          $('sel-catalogo').dispatchEvent(new Event('change'));
-        } else {
-          const curLote = $('in-lote') ? $('in-lote').value : '';
-          if(curLote){
-            const updated = replaceCampoLetterInLote(curLote, campoLetter);
-            if($('in-lote')) $('in-lote').value = updated;
-            if($('mob-in-lote')) $('mob-in-lote').value = updated;
-            updateLoteValidationUI();
-            renderPreview();
-            generateZPL();
-          }
-        }
+        selectOfficialCampo(campoLetter);
       });
     });
 
@@ -9342,9 +10188,19 @@ ${qtyCmd}
     populatePrinterSelectors();
     bindPrinterSystemEvents();
 
-    // Default variable lot values matching reference
-    $('in-packdate').value = '2026-02-27';
-    $('in-lote').value = '6B13B09118058';
+    // Inicialización de fecha de empaque con el día en que estemos al abrir el programa
+    const todayIso = getTodayIsoDate();
+    if($('in-packdate')) $('in-packdate').value = todayIso;
+    if($('mob-in-packdate')) $('mob-in-packdate').value = todayIso;
+
+    // Inicialización del código de lote a 13 dígitos acorde al campo seleccionado
+    const defRec = getSelectedRecord();
+    const defCampo = getExpectedCampo(defRec);
+    const initialYrDigit = new Date().getFullYear() % 10;
+    const initialLote = `${initialYrDigit}B13${defCampo.letra}09118058`;
+    if($('in-lote')) $('in-lote').value = initialLote;
+    if($('mob-in-lote')) $('mob-in-lote').value = initialLote;
+    lastSelectedCampoLetter = defCampo.letra;
     if($('in-size')) $('in-size').value = customLayout.defaultSize || 'R1';
     if($('in-w')) $('in-w').value = '4';
     if($('in-h')) $('in-h').value = '2';
