@@ -17,3 +17,6 @@ $RECYCLE.BIN/
 # IDE
 .vscode/
 .idea/
+
+.firebase/
+
