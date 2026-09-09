@@ -92,11 +92,20 @@ service cloud.firestore {
              validStringLength('createdBy', 1, 64);
     }
 
-    // Rules for plant operations and catalog
+    // Domain Validator: Users Document
+    function isValidUsersDoc() {
+      return hasOnlyAllowedFields(['users', 'version', 'updatedBy', 'updatedAt', 'lastClientId']) &&
+             request.resource.data.users is list &&
+             request.resource.data.users.size() <= 200 &&
+             validStringLength('updatedBy', 1, 64);
+    }
+
+    // Rules for plant operations, catalog and users
     match /pti_plant/{docId} {
       allow read: if true;
       allow create, update: if (docId == 'operation' && isValidOperation()) ||
-                               (docId == 'catalog' && isValidCatalog());
+                               (docId == 'catalog' && isValidCatalog()) ||
+                               (docId == 'users' && isValidUsersDoc());
       allow delete: if false;
     }
 

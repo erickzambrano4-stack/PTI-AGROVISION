@@ -2729,6 +2729,115 @@
 
 </div> <!-- /#app -->
 
+<!-- ===================== MODAL: RESETEAR CONTRASEÑA (ADMINISTRADOR) ===================== -->
+<div class="modal-backdrop" id="modal-reset-password" style="z-index:99990;">
+  <div class="modal-card" style="max-width:520px;border-radius:12px;overflow:hidden;box-shadow:0 25px 60px -10px rgba(0,0,0,0.85);border:1px solid var(--line);">
+    <div class="modal-header" style="background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%);padding:18px 22px;border-bottom:1px solid var(--line);">
+      <h3 id="modal-reset-title" style="margin:0;font-size:16px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;">
+        <span>🔑 Resetear Contraseña de Usuario</span>
+      </h3>
+      <button class="modal-close" id="btn-modal-reset-close" type="button" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:22px;">
+      <input type="hidden" id="reset-user-id">
+
+      <!-- Ficha informativa del usuario destino -->
+      <div id="reset-user-card" style="background:var(--card-bg, #1a232f);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:50%;background:#1f3a2c;color:var(--green-bright);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:bold;">
+            👤
+          </div>
+          <div>
+            <div id="reset-target-name" style="font-weight:700;color:#fff;font-size:14.5px;">Nombre Usuario</div>
+            <div style="font-size:12px;color:var(--ink-dim);display:flex;align-items:center;gap:8px;margin-top:3px;">
+              <span>Usuario: <b id="reset-target-user" style="color:var(--ink);font-family:var(--mono);">usuario</b></span>
+              <span>•</span>
+              <span id="reset-target-role" class="role-badge role-operador" style="font-size:10.5px;padding:2px 7px;">Operador</span>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <span class="badge" id="reset-target-perm-badge" style="background:#233040;color:#93c5fd;font-size:11px;padding:3px 8px;border-radius:6px;">Permisos Limitados</span>
+        </div>
+      </div>
+
+      <!-- Asignación de Contraseña -->
+      <div style="margin-bottom:16px;">
+        <label class="field" style="margin-bottom:8px;">
+          <span style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;">Nueva Contraseña Temporal *</span>
+            <button type="button" class="btn small ghost amber" id="btn-gen-random-pwd" style="padding:2px 9px;font-size:11px;border-color:#ca8a04;color:#fde047;">
+              🎲 Generar Segura
+            </button>
+          </span>
+          <div style="position:relative;margin-top:5px;">
+            <input type="text" id="reset-new-password" placeholder="Escriba o genere una contraseña" autocomplete="new-password" style="height:42px;font-size:15px;font-family:var(--mono);font-weight:700;letter-spacing:1px;padding-right:85px;background:#0b1118;color:#4ade80;border:1px solid #166534;">
+            <button type="button" id="btn-copy-reset-pwd" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:#1f3a2c;border:1px solid #28593a;color:#86efac;font-size:11.5px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:600;" title="Copiar contraseña al portapapeles">
+              📋 Copiar
+            </button>
+          </div>
+        </label>
+
+        <!-- Accesos rápidos de contraseña por rol estándar -->
+        <div style="font-size:11.5px;color:var(--ink-dim);margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span>Sugerencias rápidas:</span>
+          <button type="button" class="btn small ghost btn-pwd-preset" data-pwd="operador123" style="padding:2px 7px;font-size:11px;">operador123</button>
+          <button type="button" class="btn small ghost btn-pwd-preset" data-pwd="supervisor123" style="padding:2px 7px;font-size:11px;">supervisor123</button>
+          <button type="button" class="btn small ghost btn-pwd-preset" data-pwd="calidad123" style="padding:2px 7px;font-size:11px;">calidad123</button>
+        </div>
+      </div>
+
+      <!-- Checkbox para solicitar cambio de contraseña -->
+      <div style="background:#131c26;padding:12px 14px;border-radius:6px;border:1px solid var(--line);margin-bottom:16px;">
+        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink);cursor:pointer;">
+          <input type="checkbox" id="chk-must-change-pwd" checked style="accent-color:var(--green-bright);width:16px;height:16px;">
+          <span>Solicitar cambio de contraseña en el próximo inicio de sesión del usuario</span>
+        </label>
+      </div>
+
+      <div id="reset-alert-box" style="display:none;padding:10px 14px;border-radius:6px;font-size:12.5px;margin-bottom:14px;"></div>
+    </div>
+
+    <div class="modal-footer" style="background:#0f172a;padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn ghost" id="btn-cancel-reset" type="button">Cancelar</button>
+      <button class="btn" id="btn-confirm-reset" type="button" style="background:#15803d;color:#fff;font-weight:700;">
+        ✅ Guardar y Asignar Contraseña
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: CAMBIO OBLIGATORIO DE CONTRASEÑA ===================== -->
+<div class="modal-backdrop" id="modal-force-change-pwd" style="z-index:99999;backdrop-filter:blur(10px);background:rgba(10,14,19,0.95);">
+  <div class="modal-card" style="max-width:440px;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,0.9);border-radius:12px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg, #132e1e 0%, #171f28 100%);padding:22px;border-bottom:1px solid var(--line);text-align:center;">
+      <div style="width:48px;height:48px;border-radius:50%;background:#1f3a2c;color:#86efac;font-size:24px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;">
+        🔐
+      </div>
+      <h3 style="margin:0;font-size:17px;font-weight:700;color:#fff;">Actualización de Contraseña Requerida</h3>
+      <div style="font-size:12px;color:var(--ink-dim);margin-top:5px;">
+        Un Administrador ha reseteado su contraseña. Por seguridad de la planta, defina su nueva contraseña personal para continuar.
+      </div>
+    </div>
+    <div class="modal-body" style="padding:22px;">
+      <div id="force-pwd-error-box" style="display:none;background:#3f1917;border:1px solid #7f1d1d;color:#fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:14px;"></div>
+      <form id="form-force-pwd" onsubmit="return false;">
+        <label class="field" style="margin-bottom:12px;">
+          <span>Nueva Contraseña *</span>
+          <input type="password" id="in-force-new-pwd" placeholder="Mínimo 4 caracteres" autocomplete="new-password" required style="height:38px;font-size:13.5px;">
+        </label>
+        <label class="field">
+          <span>Confirmar Nueva Contraseña *</span>
+          <input type="password" id="in-force-confirm-pwd" placeholder="Repita la nueva contraseña" autocomplete="new-password" required style="height:38px;font-size:13.5px;">
+        </label>
+        <button class="btn" id="btn-submit-force-pwd" type="submit" style="width:100%;height:40px;margin-top:18px;font-size:13.5px;font-weight:700;">
+          🚀 Guardar Contraseña e Ingresar
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: AGREGAR / EDITAR USUARIO ===================== -->
 <div class="modal-backdrop" id="modal-user-edit">
   <div class="modal-card" style="max-width:580px;">
@@ -5315,13 +5424,59 @@
       // 2. Escucha en tiempo real del Catálogo Maestro
       listenToMasterCatalog();
 
-      // 3. Escucha de preferencias del usuario si hay sesión activa
+      // 3. Escucha en tiempo real de Base de Usuarios y Permisos
+      listenToUsersDb();
+
+      // 4. Escucha de preferencias del usuario si hay sesión activa
       if(currentUser && currentUser.username){
         listenToUserPreferences(currentUser.username);
       }
     } catch(e) {
       console.error('Error inicializando CloudSync:', e);
       updateSyncBadge('offline');
+    }
+  }
+
+  function listenToUsersDb(){
+    if(!firestoreDb) return;
+    firestoreDb.collection('pti_plant').doc('users').onSnapshot(snapshot => {
+      if(!snapshot.exists){
+        if(Array.isArray(usersDb) && usersDb.length > 0){
+          pushUsersDb();
+        }
+        return;
+      }
+      const data = snapshot.data();
+      if(!data || !Array.isArray(data.users)) return;
+      if(data.lastClientId === CLIENT_SESSION_ID) return;
+
+      const remoteUsers = data.users;
+      if(remoteUsers.length > 0){
+        usersDb = remoteUsers;
+        try{ localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(usersDb)); }catch(e){}
+        if(typeof renderUsersTable === 'function') renderUsersTable();
+        if(currentUser){
+          const myUpdated = usersDb.find(u => u.id === currentUser.id || u.username.toLowerCase() === currentUser.username.toLowerCase());
+          if(myUpdated) applyUserPermissions(myUpdated);
+        }
+      }
+    }, err => {
+      console.warn('Realtime users listener error:', err);
+    });
+  }
+
+  async function pushUsersDb(){
+    if(!firestoreDb || !Array.isArray(usersDb) || usersDb.length === 0) return;
+    try {
+      await firestoreDb.collection('pti_plant').doc('users').set({
+        users: usersDb,
+        version: 1,
+        updatedBy: (currentUser && currentUser.username) ? currentUser.username : 'admin',
+        updatedAt: new Date().toISOString(),
+        lastClientId: CLIENT_SESSION_ID
+      });
+    } catch(e) {
+      console.warn('Error enviando users a Firestore:', e);
     }
   }
 
@@ -6035,11 +6190,14 @@
     return users;
   }
 
-  function saveUsers(users){
+  function saveUsers(users, syncToCloud = true){
     try{
       localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
       if($('tab-users-count')) $('tab-users-count').textContent = users.length;
       if($('lbl-users-total')) $('lbl-users-total').textContent = users.length + ' Usuarios';
+      if(syncToCloud && typeof pushUsersDb === 'function'){
+        pushUsersDb();
+      }
     }catch(e){}
   }
 
@@ -6149,13 +6307,14 @@
       cardAjustes.style.display = p.canEditLayout ? '' : 'none';
     }
 
-    // 5. Permiso: Impresión Térmica
+    // 5. Permiso: Impresión Térmica (Escritorio y Móvil)
     const printBtns = [
       $('btn-print'),
       $('btn-zb-print-direct'),
       $('btn-zb-download-file'),
       $('btn-zb-windows-print'),
-      $('btn-test-print-zpl')
+      $('btn-test-print-zpl'),
+      $('mob-btn-print-main')
     ];
     printBtns.forEach(btn=>{
       if(!btn) return;
@@ -6171,24 +6330,46 @@
       }
     });
 
-    // 6. Permiso: Modificación de Lote, Fecha y Catálogo
+    // 6. Permiso: Modificación de Lote, Fecha y Catálogo (Escritorio y Móvil)
     const lotInputs = [
       $('in-packdate'),
       $('in-lote'),
       $('sel-catalogo'),
-      $('btn-fix-lote')
+      $('btn-fix-lote'),
+      $('mob-in-packdate'),
+      $('mob-in-lote'),
+      $('mob-sel-catalogo'),
+      $('mob-btn-fix-lote'),
+      $('mob-in-size'),
+      $('mob-in-copies'),
+      $('mob-btn-copies-dec'),
+      $('mob-btn-copies-inc')
     ];
     lotInputs.forEach(input=>{
       if(!input) return;
       input.disabled = !p.canEditLot;
       if(!p.canEditLot){
-        input.style.opacity = '0.6';
+        input.style.opacity = '0.5';
         input.style.cursor = 'not-allowed';
         input.title = 'Permiso para modificar lote/producto no concedido';
       } else {
         input.style.opacity = '1';
         input.style.cursor = '';
         input.title = '';
+      }
+    });
+
+    // Deshabilitar botones táctiles de selección rápida en celular si no hay permiso de edición
+    document.querySelectorAll('.mob-campo-btn, .mob-size-btn, .campo-pill').forEach(btn => {
+      btn.disabled = !p.canEditLot;
+      if(!p.canEditLot){
+        btn.style.opacity = '0.45';
+        btn.style.cursor = 'not-allowed';
+        btn.style.pointerEvents = 'none';
+      } else {
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.style.pointerEvents = '';
       }
     });
 
@@ -6237,6 +6418,13 @@
 
       const isProtected = (u.username.toLowerCase() === 'admin');
       const isSelf = currentUser && (currentUser.id === u.id);
+      const isCurrentUserAdmin = currentUser && (currentUser.role === 'Administrador' || (currentUser.permissions && currentUser.permissions.canManageUsers));
+      const hasLimitedPerms = (u.role !== 'Administrador' || (!u.permissions || !u.permissions.canManageUsers));
+
+      // Botón para que los administradores reseteen contraseñas de usuarios con permisos limitados
+      const resetBtnHtml = (isCurrentUserAdmin && hasLimitedPerms && !isProtected)
+        ? `<button class="btn small ghost btn-reset-usr-pwd" data-id="${u.id}" type="button" style="padding:3px 8px;font-size:11px;margin-left:4px;color:#facc15;border-color:#854d0e;background:rgba(234,179,8,0.1);" title="Resetear contraseña de este usuario con permisos limitados">🔑 Resetear</button>`
+        : '';
 
       tr.innerHTML = `
         <td style="font-family:var(--mono);font-weight:700;color:#fff;">${escapeHtml(u.username)}</td>
@@ -6247,6 +6435,7 @@
         <td style="font-size:11px;color:var(--ink-dim);">${lastLoginTxt}</td>
         <td style="text-align:center;white-space:nowrap;">
           <button class="btn small ghost btn-edit-usr" data-id="${u.id}" type="button" style="padding:3px 8px;font-size:11px;">✏️ Editar</button>
+          ${resetBtnHtml}
           ${isProtected || isSelf ? '' : `<button class="btn small ghost danger btn-del-usr" data-id="${u.id}" type="button" style="padding:3px 8px;font-size:11px;margin-left:4px;" title="Eliminar usuario">🗑️</button>`}
         </td>
       `;
@@ -6259,6 +6448,14 @@
         const id = btn.dataset.id;
         const u = usersDb.find(x => x.id === id);
         if(u) openUserModal(u);
+      });
+    });
+
+    tbody.querySelectorAll('.btn-reset-usr-pwd').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.id;
+        const u = usersDb.find(x => x.id === id);
+        if(u) openResetPasswordModal(u);
       });
     });
 
@@ -6322,6 +6519,110 @@
   function closeUserModal(){
     const modal = $('modal-user-edit');
     if(modal) modal.classList.remove('active');
+  }
+
+  // --- ADMINISTRATOR PASSWORD RESET FUNCTIONS ---
+  function generateSecurePassword(){
+    const prefixes = ['Agro', 'Pti', 'Pack', 'Berry', 'Fruta', 'Campo'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const symbols = ['!', '#', '*', '%', '@'];
+    const sym = symbols[Math.floor(Math.random() * symbols.length)];
+    return prefix + '2026' + sym + num;
+  }
+
+  function openResetPasswordModal(user){
+    const modal = $('modal-reset-password');
+    if(!modal || !user) return;
+
+    // Verificar que el usuario en sesión tenga permisos de administrador
+    const isCurrentUserAdmin = currentUser && (currentUser.role === 'Administrador' || (currentUser.permissions && currentUser.permissions.canManageUsers));
+    if(!isCurrentUserAdmin){
+      alert('Solo los usuarios con rol de Administrador pueden resetear contraseñas de otros usuarios.');
+      return;
+    }
+
+    // Verificar que el usuario objetivo tenga permisos limitados
+    const hasLimitedPerms = (user.role !== 'Administrador' || (!user.permissions || !user.permissions.canManageUsers));
+    if(!hasLimitedPerms && user.username.toLowerCase() === 'admin'){
+      alert('No es posible resetear la contraseña del Administrador principal a través de esta función.');
+      return;
+    }
+
+    $('reset-user-id').value = user.id;
+    $('reset-target-name').textContent = user.name || user.username;
+    $('reset-target-user').textContent = user.username;
+    $('reset-target-role').textContent = user.role || 'Operador';
+    $('reset-target-role').className = 'role-badge role-' + (user.role || 'operador').toLowerCase();
+
+    // Generar automáticamente una contraseña sugerida inicial
+    const initialPwd = generateSecurePassword();
+    $('reset-new-password').value = initialPwd;
+    $('chk-must-change-pwd').checked = true;
+
+    const alertBox = $('reset-alert-box');
+    if(alertBox){
+      alertBox.style.display = 'none';
+      alertBox.textContent = '';
+    }
+
+    modal.classList.add('active');
+  }
+
+  function closeResetPasswordModal(){
+    const modal = $('modal-reset-password');
+    if(modal) modal.classList.remove('active');
+  }
+
+  async function handleResetPasswordConfirm(){
+    const userId = $('reset-user-id').value;
+    const newPwd = $('reset-new-password').value.trim();
+    const mustChange = $('chk-must-change-pwd').checked;
+    const alertBox = $('reset-alert-box');
+
+    if(!userId){
+      alert('Usuario no especificado.');
+      return;
+    }
+    if(!newPwd || newPwd.length < 4){
+      if(alertBox){
+        alertBox.style.display = 'block';
+        alertBox.style.background = '#3f1917';
+        alertBox.style.color = '#fca5a5';
+        alertBox.style.border = '1px solid #7f1d1d';
+        alertBox.textContent = 'La nueva contraseña debe tener al menos 4 caracteres.';
+      }
+      $('reset-new-password').focus();
+      return;
+    }
+
+    const user = usersDb.find(u => u.id === userId);
+    if(!user){
+      alert('El usuario no existe en la base de datos.');
+      return;
+    }
+
+    const pwdHash = await hashPassword(newPwd);
+    user.passwordHash = pwdHash;
+    user.mustChangePassword = mustChange;
+    user.lastPasswordReset = new Date().toISOString();
+    user.lastResetBy = (currentUser && currentUser.username) ? currentUser.username : 'admin';
+
+    saveUsers(usersDb);
+    renderUsersTable();
+    closeResetPasswordModal();
+
+    // Confirmación visual con opción rápida de copiado
+    try {
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(newPwd);
+        alert('✅ ¡Contraseña reseteada exitosamente!\n\nUsuario: ' + user.username + '\nNueva Contraseña: ' + newPwd + '\n\n(Se ha copiado automáticamente al portapapeles para que pueda enviársela al operador).');
+      } else {
+        alert('✅ ¡Contraseña reseteada exitosamente!\n\nUsuario: ' + user.username + '\nNueva Contraseña: ' + newPwd);
+      }
+    } catch(e){
+      alert('✅ ¡Contraseña reseteada exitosamente!\n\nUsuario: ' + user.username + '\nNueva Contraseña: ' + newPwd);
+    }
   }
 
   async function saveUserFromModal(){
@@ -6473,6 +6774,15 @@
     applyUserPermissions(user);
     $('login-password').value = '';
     if(errorBox) errorBox.style.display = 'none';
+
+    // Si el usuario requiere cambio obligatorio de contraseña tras reseteo
+    if(user.mustChangePassword){
+      if($('modal-force-change-pwd')){
+        $('modal-force-change-pwd').classList.add('active');
+        if($('in-force-new-pwd')) $('in-force-new-pwd').value = '';
+        if($('in-force-confirm-pwd')) $('in-force-confirm-pwd').value = '';
+      }
+    }
   }
 
   function bindAuthEvents(){
@@ -6538,6 +6848,76 @@
           $('perm-manage-db').checked = preset.canManageDb;
           $('perm-manage-zebra').checked = preset.canManageZebra;
           $('perm-manage-users').checked = preset.canManageUsers;
+        }
+      });
+    }
+
+    // Reset Password Modal Event Handlers
+    if($('btn-modal-reset-close')) $('btn-modal-reset-close').addEventListener('click', closeResetPasswordModal);
+    if($('btn-cancel-reset')) $('btn-cancel-reset').addEventListener('click', closeResetPasswordModal);
+    if($('btn-confirm-reset')) $('btn-confirm-reset').addEventListener('click', handleResetPasswordConfirm);
+
+    if($('btn-gen-random-pwd')){
+      $('btn-gen-random-pwd').addEventListener('click', ()=>{
+        if($('reset-new-password')) $('reset-new-password').value = generateSecurePassword();
+      });
+    }
+
+    if($('btn-copy-reset-pwd')){
+      $('btn-copy-reset-pwd').addEventListener('click', async ()=>{
+        const pwd = $('reset-new-password') ? $('reset-new-password').value : '';
+        if(!pwd) return;
+        try{
+          if(navigator.clipboard && navigator.clipboard.writeText){
+            await navigator.clipboard.writeText(pwd);
+            const btn = $('btn-copy-reset-pwd');
+            const original = btn.textContent;
+            btn.textContent = '✓ ¡Copiado!';
+            setTimeout(()=>{ btn.textContent = original; }, 1500);
+          }
+        }catch(e){}
+      });
+    }
+
+    document.querySelectorAll('.btn-pwd-preset').forEach(btn => {
+      btn.addEventListener('click', ()=>{
+        if($('reset-new-password')) $('reset-new-password').value = btn.dataset.pwd || '';
+      });
+    });
+
+    // Forced Password Change Form Submission
+    const forceForm = $('form-force-pwd');
+    if(forceForm){
+      forceForm.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const p1 = $('in-force-new-pwd') ? $('in-force-new-pwd').value : '';
+        const p2 = $('in-force-confirm-pwd') ? $('in-force-confirm-pwd').value : '';
+        const errBox = $('force-pwd-error-box');
+
+        if(errBox) { errBox.style.display = 'none'; errBox.textContent = ''; }
+
+        if(!p1 || p1.length < 4){
+          if(errBox){
+            errBox.textContent = 'La nueva contraseña debe tener al menos 4 caracteres.';
+            errBox.style.display = 'block';
+          }
+          return;
+        }
+        if(p1 !== p2){
+          if(errBox){
+            errBox.textContent = 'Las contraseñas no coinciden. Verifique nuevamente.';
+            errBox.style.display = 'block';
+          }
+          return;
+        }
+
+        if(currentUser){
+          currentUser.passwordHash = await hashPassword(p1);
+          currentUser.mustChangePassword = false;
+          currentUser.lastPasswordReset = new Date().toISOString();
+          saveUsers(usersDb);
+          if($('modal-force-change-pwd')) $('modal-force-change-pwd').classList.remove('active');
+          alert('✅ Contraseña actualizada correctamente. ¡Bienvenido al sistema!');
         }
       });
     }
