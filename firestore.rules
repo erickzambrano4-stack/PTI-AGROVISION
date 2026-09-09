@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: pti_plant
+    // Document ID: operation, catalog
+    // Fields for operation:
+    //   - activeRecordId: string (required, length 1-64)
+    //   - lote: string (required, length 1-13)
+    //   - packdate: string (required, length 8-12)
+    //   - size: string (optional, length 1-10)
+    //   - copies: number (optional, 1-999)
+    //   - updatedBy: string (required, length 1-64)
+    //   - updatedAt: string or timestamp
+    //   - updatedFrom: string (optional, 'mobile' | 'desktop')
+    //
+    // Fields for catalog:
+    //   - records: list of maps (required, <= 500 items)
+    //   - version: number (optional)
+    //   - updatedBy: string (required)
+    //   - updatedAt: string or timestamp
+    //
+    // Collection: pti_users
+    // Document ID: {username}
+    // Fields:
+    //   - username: string (required)
+    //   - preferences: map (optional)
+    //   - updatedBy: string (required)
+    //   - updatedAt: string or timestamp
+    //
+    // Collection: pti_history
+    // Document ID: {historyId}
+    // Fields:
+    //   - id: string (required)
+    //   - ts: string (required)
+    //   - recordId: string (required)
+    //   - productoNombre: string (required)
+    //   - unidad: string (required)
+    //   - lote: string (required)
+    //   - packdate: string (required)
+    //   - vpc: string (required)
+    //   - createdBy: string (required)
+    //
+    // ===============================================================
+
+    // Helper functions
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    // Domain Validator: Operation Document
+    function isValidOperation() {
+      return hasOnlyAllowedFields(['activeRecordId', 'lote', 'packdate', 'size', 'copies', 'updatedBy', 'updatedAt', 'updatedFrom', 'lastClientId']) &&
+             validStringLength('activeRecordId', 0, 64) &&
+             validStringLength('lote', 0, 64) &&
+             validStringLength('packdate', 0, 24) &&
+             validStringLength('updatedBy', 1, 64) &&
+             (!('size' in request.resource.data) || validStringLength('size', 0, 20)) &&
+             (!('copies' in request.resource.data) || (request.resource.data.copies is number && request.resource.data.copies >= 1 && request.resource.data.copies <= 9999));
+    }
+
+    // Domain Validator: Catalog Document
+    function isValidCatalog() {
+      return hasOnlyAllowedFields(['records', 'version', 'updatedBy', 'updatedAt', 'lastClientId']) &&
+             request.resource.data.records is list &&
+             request.resource.data.records.size() <= 1000 &&
+             validStringLength('updatedBy', 1, 64);
+    }
+
+    // Domain Validator: User Document
+    function isValidUserDoc() {
+      return hasOnlyAllowedFields(['username', 'preferences', 'updatedBy', 'updatedAt', 'lastClientId']) &&
+             validStringLength('username', 1, 64) &&
+             validStringLength('updatedBy', 1, 64) &&
+             (!('preferences' in request.resource.data) || request.resource.data.preferences is map);
+    }
+
+    // Domain Validator: History Document
+    function isValidHistory() {
+      return hasOnlyAllowedFields(['id', 'ts', 'recordId', 'productoNombre', 'unidad', 'lote', 'packdate', 'vpc', 'createdBy', 'lastClientId']) &&
+             validStringLength('id', 1, 64) &&
+             validStringLength('createdBy', 1, 64);
+    }
+
+    // Rules for plant operations and catalog
+    match /pti_plant/{docId} {
+      allow read: if true;
+      allow create, update: if (docId == 'operation' && isValidOperation()) ||
+                               (docId == 'catalog' && isValidCatalog());
+      allow delete: if false;
+    }
+
+    // Rules for user configurations and preferences
+    match /pti_users/{username} {
+      allow read: if true;
+      allow create, update: if isValidUserDoc();
+      allow delete: if false;
+    }
+
+    // Rules for print history (immutable audit trail)
+    match /pti_history/{historyId} {
+      allow read: if true;
+      allow create: if isValidHistory();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

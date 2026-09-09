@@ -6,6 +6,9 @@
 <title>PTI PACKING AGV - Agrovision</title>
 <!-- Local offline JsBarcode library bundled to avoid CDN dependency -->
 <script src="jsbarcode.min.js"></script>
+<!-- Local offline Google Firebase SDK bundled for real-time cloud sync & offline cache -->
+<script src="firebase-app-compat.js"></script>
+<script src="firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg: #10151b;
@@ -1361,6 +1364,10 @@
       </div>
     </div>
     <div id="header-user-badge" style="display:flex;align-items:center;gap:10px;">
+      <div id="cloud-sync-status-badge" class="chip" style="background:#132e1e;color:#86efac;border:1px solid #28593a;font-size:11.5px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;" title="Sincronización en tiempo real con Cloud Firestore activa en todas las plataformas">
+        <span class="sync-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#86efac;box-shadow:0 0 6px #86efac;"></span>
+        <span id="cloud-sync-status-txt">Tiempo Real Activo</span>
+      </div>
       <button class="btn small amber" id="btn-toggle-mobile-mode" type="button" style="padding:5px 11px;font-size:11.5px;display:inline-flex;align-items:center;gap:4px;" title="Cambiar a Modo Celular (Estación Compacta)">
         📱 Modo Celular
       </button>
@@ -2329,7 +2336,11 @@
           <div class="mobile-app-sub" id="mob-header-app-sub">Agrovision · Packing Operaciones</div>
         </div>
       </div>
-      <div class="mobile-header-right">
+      <div class="mobile-header-right" style="display:flex;align-items:center;gap:6px;">
+        <div id="mob-cloud-sync-badge" style="font-size:10.5px;padding:3px 7px;border-radius:12px;background:#132e1e;color:#86efac;border:1px solid #28593a;display:inline-flex;align-items:center;gap:4px;cursor:pointer;" title="Sincronización en tiempo real en la nube">
+          <span class="sync-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#86efac;box-shadow:0 0 5px #86efac;"></span>
+          <span id="mob-cloud-sync-txt">Nube OK</span>
+        </div>
         <button class="mob-btn-switch-mode" id="btn-exit-mobile-mode" type="button" title="Regresar al panel completo de escritorio">
           🖥️ Escritorio
         </button>
@@ -5214,6 +5225,324 @@
   }
 ];
 
+
+  // ===============================================================
+  // CLOUD SYNC MANAGER (Cloud Firestore Real-Time Multiplatform & Per-User Sync)
+  // ===============================================================
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBrg8vU5npEr0HB_FBcwea0As9vP8L64Is",
+    authDomain: "pti-agrovision-app.firebaseapp.com",
+    projectId: "pti-agrovision-app",
+    storageBucket: "pti-agrovision-app.firebasestorage.app",
+    messagingSenderId: "124208180939",
+    appId: "1:124208180939:web:ba1584d3067307f23f754e"
+  };
+
+  let firestoreDb = null;
+  const CLIENT_SESSION_ID = 'cli_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  let isApplyingRemoteUpdate = false;
+  let syncDebounceTimer = null;
+  let userPrefUnsub = null;
+
+  function updateSyncBadge(status, text){
+    const deskBadge = $('cloud-sync-status-badge');
+    const deskTxt = $('cloud-sync-status-txt');
+    const mobBadge = $('mob-cloud-sync-badge');
+    const mobTxt = $('mob-cloud-sync-txt');
+
+    let bg = '#132e1e', col = '#86efac', border = '#28593a', dotCol = '#86efac';
+    let defaultDesk = 'Tiempo Real Activo';
+    let defaultMob = 'Nube OK';
+
+    if(status === 'syncing'){
+      bg = '#3a2814'; col = '#fde047'; border = '#d68a3d'; dotCol = '#fde047';
+      defaultDesk = 'Sincronizando...';
+      defaultMob = 'Sinc...';
+    } else if(status === 'offline'){
+      bg = '#2b261b'; col = '#d1d5db'; border = '#4b5563'; dotCol = '#9ca3af';
+      defaultDesk = 'Modo Local (Offline)';
+      defaultMob = 'Offline';
+    } else if(status === 'error'){
+      bg = '#3f1917'; col = '#fca5a5'; border = '#7f1d1d'; dotCol = '#ef4444';
+      defaultDesk = 'Error Nube';
+      defaultMob = 'Error';
+    }
+
+    const tDesk = text || defaultDesk;
+    const tMob = text || defaultMob;
+
+    [deskBadge, mobBadge].forEach(b => {
+      if(b){
+        b.style.background = bg;
+        b.style.color = col;
+        b.style.borderColor = border;
+        const dot = b.querySelector('.sync-dot');
+        if(dot) dot.style.background = dotCol;
+      }
+    });
+
+    if(deskTxt) deskTxt.textContent = tDesk;
+    if(mobTxt) mobTxt.textContent = tMob;
+  }
+
+  function initCloudSync(){
+    try {
+      if(typeof firebase === 'undefined'){
+        console.warn('Firebase SDK no cargado en la página.');
+        updateSyncBadge('offline');
+        return;
+      }
+
+      if(!firebase.apps || firebase.apps.length === 0){
+        firebase.initializeApp(FIREBASE_CONFIG);
+      }
+      firestoreDb = firebase.firestore();
+
+      // Habilitar persistencia sin conexión en IndexedDB
+      firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        if(err.code === 'failed-precondition'){
+          console.warn('Persistencia Firestore: Múltiples pestañas abiertas.');
+        } else if(err.code === 'unimplemented'){
+          console.warn('Persistencia Firestore no soportada por el navegador.');
+        }
+      });
+
+      updateSyncBadge('online');
+
+      // 1. Escucha en tiempo real de Operación de Planta
+      listenToPlantOperation();
+
+      // 2. Escucha en tiempo real del Catálogo Maestro
+      listenToMasterCatalog();
+
+      // 3. Escucha de preferencias del usuario si hay sesión activa
+      if(currentUser && currentUser.username){
+        listenToUserPreferences(currentUser.username);
+      }
+    } catch(e) {
+      console.error('Error inicializando CloudSync:', e);
+      updateSyncBadge('offline');
+    }
+  }
+
+  function listenToPlantOperation(){
+    if(!firestoreDb) return;
+    firestoreDb.collection('pti_plant').doc('operation').onSnapshot(snapshot => {
+      window._cloudSyncConnected = true;
+      if(!snapshot.exists) return;
+      const data = snapshot.data();
+      if(!data) return;
+
+      // Ignorar eco de este mismo cliente
+      if(data.lastClientId === CLIENT_SESSION_ID) return;
+
+      isApplyingRemoteUpdate = true;
+      try {
+        // Sincronizar Catálogo si cambió
+        if(data.activeRecordId && $('sel-catalogo') && $('sel-catalogo').value !== data.activeRecordId){
+          if(Array.isArray(masterDb) && masterDb.some(r => r.id === data.activeRecordId)){
+            $('sel-catalogo').value = data.activeRecordId;
+            if($('mob-sel-catalogo')) $('mob-sel-catalogo').value = data.activeRecordId;
+            const rec = getSelectedRecord();
+            lastSelectedCampoLetter = getExpectedCampo(rec).letra;
+          }
+        }
+
+        // Sincronizar Lote
+        if(data.lote){
+          if($('in-lote') && $('in-lote').value !== data.lote) $('in-lote').value = data.lote;
+          if($('mob-in-lote') && $('mob-in-lote').value !== data.lote) $('mob-in-lote').value = data.lote;
+        }
+
+        // Sincronizar Fecha
+        if(data.packdate){
+          if($('in-packdate') && $('in-packdate').value !== data.packdate) $('in-packdate').value = data.packdate;
+          if($('mob-in-packdate') && $('mob-in-packdate').value !== data.packdate) $('mob-in-packdate').value = data.packdate;
+        }
+
+        // Sincronizar Calibre
+        if(data.size){
+          if($('in-size') && $('in-size').value !== data.size) $('in-size').value = data.size;
+          if($('mob-in-size') && $('mob-in-size').value !== data.size) $('mob-in-size').value = data.size;
+          document.querySelectorAll('.mob-size-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.size === data.size);
+          });
+        }
+
+        // Sincronizar Copias
+        if(data.copies !== undefined){
+          const numCop = Math.max(1, parseInt(data.copies, 10) || 1);
+          if($('zb-copies')) $('zb-copies').value = numCop;
+          if($('in-qty')) $('in-qty').value = numCop;
+          if($('mob-in-copies')) $('mob-in-copies').value = numCop;
+          if(typeof zebraConfig !== 'undefined') zebraConfig.copies = numCop;
+        }
+
+        updateSelectedRecordSummary();
+        updateLoteValidationUI();
+        renderPreview();
+        generateZPL();
+        updateSyncBadge('online', 'Actualizado');
+        setTimeout(() => updateSyncBadge('online'), 2000);
+      } finally {
+        isApplyingRemoteUpdate = false;
+      }
+    }, err => {
+      console.warn('Realtime operation listener error:', err);
+      updateSyncBadge('offline');
+    });
+  }
+
+  function pushPlantOperation(immediate = false){
+    if(isApplyingRemoteUpdate || !firestoreDb) return;
+
+    const doPush = async () => {
+      try {
+        updateSyncBadge('syncing');
+        const activeId = $('sel-catalogo') ? $('sel-catalogo').value : '';
+        const loteVal = $('in-lote') ? $('in-lote').value : '';
+        const packdateVal = $('in-packdate') ? $('in-packdate').value : '';
+        const sizeVal = $('in-size') ? $('in-size').value : 'R1';
+        const copiesVal = (typeof zebraConfig !== 'undefined' && zebraConfig.copies) ? zebraConfig.copies :
+          parseInt(($('zb-copies') && $('zb-copies').value) || ($('mob-in-copies') && $('mob-in-copies').value) || 1, 10) || 1;
+        const updatedBy = (currentUser && currentUser.username) ? currentUser.username : 'operador';
+
+        await firestoreDb.collection('pti_plant').doc('operation').set({
+          activeRecordId: activeId,
+          lote: loteVal,
+          packdate: packdateVal,
+          size: sizeVal,
+          copies: copiesVal,
+          updatedBy: updatedBy,
+          updatedAt: new Date().toISOString(),
+          updatedFrom: window.innerWidth <= 768 ? 'mobile' : 'desktop',
+          lastClientId: CLIENT_SESSION_ID
+        }, { merge: true });
+        updateSyncBadge('online');
+      } catch(e) {
+        console.warn('Error enviando operación a Firestore:', e);
+        updateSyncBadge('offline');
+      }
+    };
+
+    if(immediate){
+      if(syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      doPush();
+    } else {
+      if(syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(doPush, 350);
+    }
+  }
+
+  function listenToMasterCatalog(){
+    if(!firestoreDb) return;
+    firestoreDb.collection('pti_plant').doc('catalog').onSnapshot(snapshot => {
+      if(!snapshot.exists){
+        // Si no existe catálogo remoto, sembrar el catálogo de 84 registros oficiales
+        if(Array.isArray(masterDb) && masterDb.length > 0){
+          firestoreDb.collection('pti_plant').doc('catalog').set({
+            records: masterDb,
+            version: 1,
+            updatedAt: new Date().toISOString(),
+            updatedBy: (currentUser && currentUser.username) ? currentUser.username : 'sistema',
+            lastClientId: CLIENT_SESSION_ID
+          }).catch(e => console.warn('Catalog seed error:', e));
+        }
+        return;
+      }
+
+      const data = snapshot.data();
+      if(data && Array.isArray(data.records) && data.records.length > 0){
+        if(data.lastClientId === CLIENT_SESSION_ID) return;
+        masterDb = data.records;
+        saveDb(masterDb, false); // guardar localmente sin re-enviar
+        refreshMasterSelector();
+        if(typeof renderDatabaseTable === 'function') renderDatabaseTable();
+      }
+    }, err => {
+      console.warn('Catalog listener error:', err);
+    });
+  }
+
+  function pushMasterCatalog(){
+    if(!firestoreDb || !Array.isArray(masterDb)) return;
+    updateSyncBadge('syncing');
+    firestoreDb.collection('pti_plant').doc('catalog').set({
+      records: masterDb,
+      version: Date.now(),
+      updatedAt: new Date().toISOString(),
+      updatedBy: (currentUser && currentUser.username) ? currentUser.username : 'sistema',
+      lastClientId: CLIENT_SESSION_ID
+    }).then(() => {
+      updateSyncBadge('online');
+    }).catch(err => {
+      console.warn('Error pushing catalog to cloud:', err);
+      updateSyncBadge('offline');
+    });
+  }
+
+  function listenToUserPreferences(username){
+    if(!username || !firestoreDb) return;
+    if(userPrefUnsub) { userPrefUnsub(); userPrefUnsub = null; }
+
+    userPrefUnsub = firestoreDb.collection('pti_users').doc(username).onSnapshot(snapshot => {
+      if(!snapshot.exists) return;
+      const data = snapshot.data();
+      if(data && data.preferences){
+        const p = data.preferences;
+        if(p.activePrinterId && $('sel-active-printer')){
+          const prnSel = $('sel-active-printer');
+          if(prnSel.value !== p.activePrinterId && Array.from(prnSel.options).some(o => o.value === p.activePrinterId)){
+            prnSel.value = p.activePrinterId;
+            if($('mob-sel-printer')) $('mob-sel-printer').value = p.activePrinterId;
+            saveActivePrinter(p.activePrinterId, false);
+            renderPrintersList();
+          }
+        }
+        if(p.zebraConfig){
+          zebraConfig = { ...zebraConfig, ...p.zebraConfig };
+          saveZebraConfig(zebraConfig, false);
+          syncZebraUI();
+        }
+        if(p.customLayout){
+          customLayout = { ...customLayout, ...p.customLayout };
+          saveLayout(customLayout, false);
+          renderPreview();
+        }
+      }
+    }, err => {
+      console.warn('User preferences listener error:', err);
+    });
+  }
+
+  function pushUserPreferences(){
+    if(!firestoreDb || !currentUser || !currentUser.username) return;
+    const username = currentUser.username;
+    const prefs = {
+      activePrinterId: $('sel-active-printer') ? $('sel-active-printer').value : '',
+      zebraConfig: zebraConfig,
+      customLayout: customLayout,
+      savedAt: new Date().toISOString()
+    };
+
+    firestoreDb.collection('pti_users').doc(username).set({
+      username: username,
+      preferences: prefs,
+      updatedBy: username,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(err => {
+      console.warn('Error saving user preferences:', err);
+    });
+  }
+
+  function pushHistoryToCloud(entry){
+    if(!firestoreDb || !entry) return;
+    firestoreDb.collection('pti_history').doc(entry.id).set({
+      ...entry,
+      createdBy: (currentUser && currentUser.username) ? currentUser.username : 'operador'
+    }).catch(e => console.warn('History cloud sync error:', e));
+  }
+
   // ---------------- STORAGE & LAYOUT KEYS ----------------
   const STORAGE_KEY = 'pti_master_db_records_v2';
   const STORAGE_BACKUP_KEY = 'pti_master_db_backup_auto_v2';
@@ -5285,9 +5614,12 @@
     return Object.assign({}, DEFAULT_ZEBRA_CONFIG);
   }
 
-  function saveZebraConfig(cfg){
+  function saveZebraConfig(cfg, syncToCloud = true){
     try{
       localStorage.setItem(ZEBRA_CONFIG_KEY, JSON.stringify(cfg));
+      if(syncToCloud && typeof pushUserPreferences === 'function'){
+        pushUserPreferences();
+      }
     }catch(e){}
   }
 
@@ -5432,8 +5764,11 @@
     return def || list[0] || DEFAULT_SYSTEM_PRINTERS[0];
   }
 
-  function setActivePrinter(id){
+  function setActivePrinter(id, syncToCloud = true){
     localStorage.setItem(ACTIVE_PRINTER_KEY, id);
+    if(syncToCloud && typeof pushUserPreferences === 'function'){
+      pushUserPreferences();
+    }
     const prn = getActivePrinter();
     if(prn){
       if($('lbl-active-printer-conn')){
@@ -5502,13 +5837,16 @@
     return [];
   }
 
-  function saveDb(arr){
+  function saveDb(arr, syncToCloud = true){
     try{
       const dataStr = JSON.stringify(arr);
       localStorage.setItem(STORAGE_KEY, dataStr);
       // Guardar simultaneamente copia espejo de respaldo automatico
       if(Array.isArray(arr) && arr.length > 0){
         localStorage.setItem(STORAGE_BACKUP_KEY, dataStr);
+      }
+      if(syncToCloud && typeof pushMasterCatalog === 'function'){
+        pushMasterCatalog();
       }
     }catch(e){ console.error('Error saving master DB', e); }
   }
@@ -5537,9 +5875,12 @@
     return Object.assign({}, DEFAULT_LAYOUT);
   }
 
-  function saveLayout(obj){
+  function saveLayout(obj, syncToCloud = true){
     try{
       localStorage.setItem(LAYOUT_KEY, JSON.stringify(obj));
+      if(syncToCloud && typeof pushUserPreferences === 'function'){
+        pushUserPreferences();
+      }
     }catch(e){}
   }
 
@@ -5756,6 +6097,10 @@
     if($('modal-login')){
       $('modal-login').classList.remove('active');
       $('modal-login').style.display = 'none';
+    }
+    // Sincronizar preferencias en tiempo real para este usuario
+    if(typeof listenToUserPreferences === 'function'){
+      listenToUserPreferences(user.username);
     }
 
     // Header session profile info
@@ -6705,6 +7050,9 @@
     updateLoteValidationUI();
     renderPreview();
     generateZPL();
+
+    // Sincronización en tiempo real a la nube
+    pushPlantOperation(true);
   }
 
   $('sel-catalogo').addEventListener('change', onCatalogoRecordChange);
@@ -6765,6 +7113,9 @@
     updateLoteValidationUI();
     renderPreview();
     generateZPL();
+
+    // Sincronización en tiempo real a la nube
+    pushPlantOperation(true);
   }
 
   $('btn-edit-selected-record').addEventListener('click', ()=>{
@@ -7372,6 +7723,9 @@
     updateLoteValidationUI();
     renderPreview();
     generateZPL();
+
+    // Sincronización con debounce en tiempo real
+    pushPlantOperation(false);
   }
 
   const inLoteDesk = $('in-lote');
@@ -7413,6 +7767,7 @@
         }
         renderPreview();
         generateZPL();
+        pushPlantOperation(id === 'in-packdate');
       });
       el.addEventListener('change', (e)=>{
         if(id === 'in-size') e.target.value = e.target.value.toUpperCase();
@@ -7421,6 +7776,7 @@
         }
         renderPreview();
         generateZPL();
+        pushPlantOperation(true);
       });
     }
   });
@@ -7681,6 +8037,9 @@
     historial = historial.slice(0, 80);
     saveHistory(historial);
     renderHistorial();
+    if(typeof pushHistoryToCloud === 'function'){
+      pushHistoryToCloud(entry);
+    }
     alert(`Etiqueta guardada en historial.\nVoice Pick Code: ${vpc.small} ${vpc.large} (${vpc.code})`);
   });
 
@@ -8510,9 +8869,15 @@
     });
 
     $('zb-copies').addEventListener('input', (e)=>{
-      zebraConfig.copies = Math.max(1, parseInt(e.target.value, 10) || 1);
-      if($('in-qty')) $('in-qty').value = zebraConfig.copies;
+      const num = Math.max(1, parseInt(e.target.value, 10) || 1);
+      zebraConfig.copies = num;
+      if($('in-qty')) $('in-qty').value = num;
+      if($('mob-in-copies')) $('mob-in-copies').value = num;
       generateZPL();
+      pushPlantOperation(true);
+    });
+    $('zb-copies').addEventListener('change', ()=>{
+      $('zb-copies').dispatchEvent(new Event('input'));
     });
 
     if($('in-qty')){
@@ -10019,6 +10384,7 @@ ${qtyCmd}
         if($('in-size')) {
           $('in-size').value = val;
           $('in-size').dispatchEvent(new Event('input'));
+          pushPlantOperation(true);
         }
       });
     });
@@ -10045,6 +10411,7 @@ ${qtyCmd}
           $('in-packdate').value = e.target.value;
           renderPreview();
           generateZPL();
+          pushPlantOperation(true);
         }
       };
       inMobPack.addEventListener('change', handleMobDateChange);
@@ -10072,7 +10439,10 @@ ${qtyCmd}
         if(cur > 1){
           cur--;
           inMobCopies.value = cur;
-          if($('in-copies')) $('in-copies').value = cur;
+          if($('zb-copies')) $('zb-copies').value = cur;
+          if($('in-qty')) $('in-qty').value = cur;
+          if(typeof zebraConfig !== 'undefined') zebraConfig.copies = cur;
+          pushPlantOperation(true);
         }
       });
     }
@@ -10082,18 +10452,26 @@ ${qtyCmd}
         if(cur < 999){
           cur++;
           inMobCopies.value = cur;
-          if($('in-copies')) $('in-copies').value = cur;
+          if($('zb-copies')) $('zb-copies').value = cur;
+          if($('in-qty')) $('in-qty').value = cur;
+          if(typeof zebraConfig !== 'undefined') zebraConfig.copies = cur;
+          pushPlantOperation(true);
         }
       });
     }
     if(inMobCopies){
-      inMobCopies.addEventListener('change', ()=>{
+      const handleMobCopiesInput = ()=>{
         let cur = parseInt(inMobCopies.value, 10) || 1;
         if(cur < 1) cur = 1;
         if(cur > 999) cur = 999;
         inMobCopies.value = cur;
-        if($('in-copies')) $('in-copies').value = cur;
-      });
+        if($('zb-copies')) $('zb-copies').value = cur;
+        if($('in-qty')) $('in-qty').value = cur;
+        if(typeof zebraConfig !== 'undefined') zebraConfig.copies = cur;
+        pushPlantOperation(true);
+      };
+      inMobCopies.addEventListener('input', handleMobCopiesInput);
+      inMobCopies.addEventListener('change', handleMobCopiesInput);
     }
 
     // 10. Giant Touch Print Button (triggers desktop btn-print)
@@ -10215,6 +10593,9 @@ ${qtyCmd}
     // Identity & Custom Branding
     applyBranding(currentBranding);
     bindBrandingEvents();
+
+    // Inicializar Sincronización en Tiempo Real Multiplataforma Cloud Firestore
+    initCloudSync();
     // Clear any past mobile preference
     try { localStorage.removeItem('pti_mobile_ui_pref'); } catch(e){}
     // Authentication & Permissions System
