@@ -42,8 +42,10 @@ service cloud.firestore {
     //   - unidad: string (required)
     //   - lote: string (required)
     //   - packdate: string (required)
+    //   - size: string (optional, length 0-20)
     //   - vpc: string (required)
     //   - createdBy: string (required)
+    //   - lastClientId: string (optional)
     //
     // ===============================================================
 
@@ -87,9 +89,10 @@ service cloud.firestore {
 
     // Domain Validator: History Document
     function isValidHistory() {
-      return hasOnlyAllowedFields(['id', 'ts', 'recordId', 'productoNombre', 'unidad', 'lote', 'packdate', 'vpc', 'createdBy', 'lastClientId']) &&
+      return hasOnlyAllowedFields(['id', 'ts', 'recordId', 'productoNombre', 'unidad', 'lote', 'packdate', 'size', 'vpc', 'createdBy', 'lastClientId']) &&
              validStringLength('id', 1, 64) &&
-             validStringLength('createdBy', 1, 64);
+             validStringLength('createdBy', 1, 64) &&
+             (!('size' in request.resource.data) || validStringLength('size', 0, 20));
     }
 
     // Domain Validator: Users Document
@@ -116,12 +119,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Rules for print history (immutable audit trail)
+    // Rules for print history
     match /pti_history/{historyId} {
       allow read: if true;
-      allow create: if isValidHistory();
-      allow update: if false;
-      allow delete: if false;
+      allow create, update: if isValidHistory();
+      allow delete: if true;
     }
 
     // Default deny for everything else
