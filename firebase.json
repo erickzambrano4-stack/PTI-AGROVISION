@@ -6,6 +6,11 @@
       ".firebaserc",
       "**/.*",
       "**/node_modules/**",
+      "dist/**",
+      "installer/**",
+      "**/*.exe",
+      "**/*.zip",
+      "**/*.cs",
       "README.md",
       "*.ps1"
     ],
