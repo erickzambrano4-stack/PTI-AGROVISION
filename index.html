@@ -2563,9 +2563,10 @@
     <div class="card" id="card-admin-licenses" style="margin-top:18px;border:1px solid #cbd5e1;box-shadow:0 8px 24px rgba(15,23,42,0.06);">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line);">
         <div>
-          <h2 style="margin:0;border:0;padding:0;display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink);">
+          <h2 style="margin:0;border:0;padding:0;display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink);flex-wrap:wrap;">
             <span>🔐 Control de Licencias por Clave de Activación y Límite de Cupos</span>
             <span class="pill" id="lbl-lic-quota-pill" style="background:#ecfdf5;color:#059669;border-color:#a7f3d0;font-weight:800;">1 / 5 Equipos Activos</span>
+            <span class="pill" id="lbl-lic-users-active-pill" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;font-weight:800;">3 / 3 Usuarios con Licencia</span>
           </h2>
           <p style="font-size:12px;color:var(--ink-dim);margin:4px 0 0;">
             Limita cuántos equipos pueden ejecutar <b>PTI Packing AGV</b> simultáneamente, genera claves de activación para nuevas estaciones y bloquea o libera cupos en tiempo real.
@@ -2658,6 +2659,7 @@
               <tr>
                 <th>Clave de Activación</th>
                 <th>Descripción / Destino</th>
+                <th>Equipos / Usuarios Activos con esta Clave</th>
                 <th style="text-align:center;">Cupos de Clave</th>
                 <th>Vigencia</th>
                 <th>Estado</th>
@@ -2670,11 +2672,12 @@
       </div>
 
       <!-- Tabla de Equipos Registrados y Pre-autorización Directa -->
-      <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:14px;">
+      <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:18px;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
           <div>
             <div style="font-size:13px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px;">
-              <span>🖥️ Equipos Registrados y Control de Acceso en Tiempo Real</span>
+              <span>🖥️ Equipos con Licencia Activa y Control de Acceso en Tiempo Real</span>
+              <span class="pill" id="lbl-lic-devices-count" style="font-size:11px;background:#ecfdf5;color:#059669;border-color:#a7f3d0;">1 Equipo Activo</span>
             </div>
             <div style="font-size:11.5px;color:var(--ink-dim);margin-top:2px;">
               Si revocas o eliminas un equipo, su acceso se bloqueará de inmediato y su cupo quedará libre para otra computadora.
@@ -2700,11 +2703,37 @@
                 <th>Clave Asociada</th>
                 <th>Usuario Actual / Activado por</th>
                 <th>Última Conexión</th>
-                <th>Estado</th>
+                <th>Estado de Licencia</th>
                 <th style="text-align:center;">Acciones</th>
               </tr>
             </thead>
             <tbody id="tbody-lic-devices"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tabla de Usuarios con Licencia Operativa Activa -->
+      <div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div style="font-size:13px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:6px;">
+            <span>👤 Licencias Operativas Activas por Usuario</span>
+            <span class="pill" id="lbl-lic-users-table-pill" style="font-size:11px;background:#ecfdf5;color:#059669;border-color:#a7f3d0;">Usuarios Licenciados</span>
+          </div>
+          <span style="font-size:11.5px;color:var(--ink-dim);">Controla qué usuarios tienen licencia operativa activa y qué clave tienen vinculada</span>
+        </div>
+        <div class="db-table-wrap" style="max-height:240px;">
+          <table class="db-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Nombre Completo</th>
+                <th>Rol</th>
+                <th>Clave de Licencia Asignada</th>
+                <th>Estado de Licencia</th>
+                <th style="text-align:center;">Acción Rápida</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-lic-users-summary"></tbody>
           </table>
         </div>
       </div>
@@ -7097,7 +7126,11 @@
 
   // Función que verifica si el usuario es EXCLUSIVAMENTE el usuario maestro "admin" (único con acceso a gestión de licencias)
   function isMasterAdminUser(user = currentUser){
-    return !!(user && user.username && String(user.username).trim().toLowerCase() === 'admin');
+    const u = user !== undefined ? user : currentUser;
+    if(!u) return false;
+    const uname = String(u.username || '').trim().toLowerCase();
+    const uid = String(u.id || '').trim().toLowerCase();
+    return uname === 'admin' || uname.startsWith('admin@') || uid === 'usr-admin';
   }
 
   function applyUserPermissions(user){
@@ -7347,10 +7380,14 @@
       }
     });
 
-    // Actualizar insignias de recuento y tabla de usuarios (para reflejar visibilidad de licencias solo para "admin")
+    // Actualizar insignias de recuento, tabla de usuarios y panel de licencias (visible solo para "admin")
     if($('tab-users-count')) $('tab-users-count').textContent = usersDb.length;
     if($('lbl-users-total')) $('lbl-users-total').textContent = usersDb.length + ' Usuarios';
     if(typeof renderUsersTable === 'function') renderUsersTable();
+    if(isMasterAdmin && typeof ensureMasterAdminDeviceRegistered === 'function'){
+      ensureMasterAdminDeviceRegistered();
+    }
+    if(typeof renderLicenseAdminUI === 'function') renderLicenseAdminUI();
 
     // Si es el usuario "admin" sin licencia de equipo activa, llevarlo directamente a Usuarios y Licencias
     if(!licInfo.licensed && isMasterAdmin && $('tab-btn-usuarios')){
@@ -7485,8 +7522,14 @@
         if(u.hasLicense && !u.licenseKey){
           u.licenseKey = DEFAULT_MASTER_KEY;
         }
+        if(u.hasLicense && u.licenseKey && typeof ensureLicenseKeyExists === 'function'){
+          ensureLicenseKeyExists(u.licenseKey, `Licencia Usuario ${u.username}`);
+          saveSystemLicensesLocal(licenseData);
+          pushSystemLicenses();
+        }
         saveUsers(usersDb);
         renderUsersTable();
+        if(typeof renderLicenseAdminUI === 'function') renderLicenseAdminUI();
         if(currentUser && currentUser.id === u.id){
           applyUserPermissions(u);
           enforceDeviceLicenseGate();
@@ -7789,7 +7832,12 @@
     }
 
     saveUsers(usersDb);
+    if(isMasterAdmin && typeof saveSystemLicensesLocal === 'function'){
+      saveSystemLicensesLocal(licenseData);
+      if(typeof pushSystemLicenses === 'function') pushSystemLicenses();
+    }
     renderUsersTable();
+    if(typeof renderLicenseAdminUI === 'function') renderLicenseAdminUI();
     closeUserModal();
 
     if(currentUser && currentUser.id === id){
@@ -8139,6 +8187,18 @@
       ...(Array.isArray(inc.deletedDeviceIds) ? inc.deletedDeviceIds.map(cleanKeyAlnum) : [])
     ].filter(Boolean));
 
+    // Si una clave o dispositivo fue vuelto a crear/activar con fecha más reciente en base o incoming, quitarlo de eliminados
+    [...(Array.isArray(b.keys) ? b.keys : []), ...(Array.isArray(inc.keys) ? inc.keys : [])].forEach(k => {
+      if(k && k.key && k.status === 'active' && k.updatedAt){
+        deletedKeysSet.delete(cleanKeyAlnum(k.key));
+      }
+    });
+    [...(Array.isArray(b.devices) ? b.devices : []), ...(Array.isArray(inc.devices) ? inc.devices : [])].forEach(d => {
+      if(d && d.machineId && d.status === 'active' && d.activatedAt){
+        deletedDevsSet.delete(cleanKeyAlnum(d.machineId));
+      }
+    });
+
     // Unir claves por código alfanumérico normalizado
     const keyMap = new Map();
     const addKeyToMap = (k, isFromIncoming) => {
@@ -8154,13 +8214,14 @@
           ...k,
           id: k.id || ('key_' + cCode),
           key: normCode,
+          label: k.label || (normCode === DEFAULT_MASTER_KEY ? 'Licencia Principal Planta AGV' : 'Licencia Operativa AGV'),
           maxSeats: Math.max(1, parseInt(k.maxSeats, 10) || 1),
           status: k.status || 'active'
         });
       } else {
         const exTime = Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
         const newTime = Date.parse(k.updatedAt || k.createdAt || '') || 0;
-        const preferNew = newTime >= exTime || isFromIncoming;
+        const preferNew = newTime > exTime || (newTime === exTime && isFromIncoming);
         const chosen = preferNew ? { ...existing, ...k } : { ...k, ...existing };
         chosen.key = normCode;
         chosen.maxSeats = Math.max(parseInt(existing.maxSeats, 10) || 1, parseInt(k.maxSeats, 10) || 1);
@@ -8181,15 +8242,19 @@
     const devMap = new Map();
     const addDevToMap = (d, isFromIncoming) => {
       if(!d || !d.machineId) return;
-      if(d.label === 'Estación Principal (Auto-Registrada)') return;
       const normId = normalizeLicenseKey(d.machineId);
       const cId = cleanKeyAlnum(normId);
       if(!cId || deletedDevsSet.has(cId)) return;
+
+      const cleanLabel = (d.label === 'Estación Principal (Auto-Registrada)')
+        ? (d.hostname || 'Estación Principal AGV')
+        : (d.label || d.hostname || 'Estación Empaque');
 
       const existing = devMap.get(cId);
       if(!existing){
         devMap.set(cId, {
           ...d,
+          label: cleanLabel,
           machineId: normId,
           licenseKey: normalizeLicenseKey(d.licenseKey || DEFAULT_MASTER_KEY),
           status: d.status || 'active'
@@ -8197,8 +8262,9 @@
       } else {
         const exTime = Date.parse(existing.lastSeenAt || existing.activatedAt || '') || 0;
         const newTime = Date.parse(d.lastSeenAt || d.activatedAt || '') || 0;
-        const preferNew = newTime >= exTime || isFromIncoming;
+        const preferNew = newTime > exTime || (newTime === exTime && isFromIncoming);
         const chosen = preferNew ? { ...existing, ...d } : { ...d, ...existing };
+        chosen.label = chosen.label === 'Estación Principal (Auto-Registrada)' ? cleanLabel : (chosen.label || cleanLabel);
         chosen.machineId = normId;
         chosen.licenseKey = normalizeLicenseKey(chosen.licenseKey || DEFAULT_MASTER_KEY);
         devMap.set(cId, chosen);
@@ -8207,6 +8273,49 @@
 
     (Array.isArray(b.devices) ? b.devices : []).forEach(d => addDevToMap(d, false));
     (Array.isArray(inc.devices) ? inc.devices : []).forEach(d => addDevToMap(d, true));
+
+    // Asegurar que toda clave asociada a un equipo activo o a un usuario con licencia exista en la tabla de claves
+    Array.from(devMap.values()).forEach(dev => {
+      if(dev && dev.licenseKey){
+        const normK = normalizeLicenseKey(dev.licenseKey);
+        const cK = cleanKeyAlnum(normK);
+        if(cK && !keyMap.has(cK) && !deletedKeysSet.has(cK)){
+          keyMap.set(cK, {
+            id: 'key_' + cK,
+            key: normK,
+            label: `Licencia Activa (${dev.label || dev.hostname || dev.machineId})`,
+            maxSeats: 1,
+            expiresAt: null,
+            status: 'active',
+            createdAt: dev.activatedAt || new Date().toISOString(),
+            updatedAt: dev.lastSeenAt || new Date().toISOString(),
+            createdBy: dev.activatedBy || 'admin'
+          });
+        }
+      }
+    });
+
+    if(typeof usersDb !== 'undefined' && Array.isArray(usersDb)){
+      usersDb.forEach(u => {
+        if(u && u.hasLicense !== false && u.licenseKey){
+          const normK = normalizeLicenseKey(u.licenseKey);
+          const cK = cleanKeyAlnum(normK);
+          if(cK && !keyMap.has(cK) && !deletedKeysSet.has(cK)){
+            keyMap.set(cK, {
+              id: 'key_' + cK,
+              key: normK,
+              label: `Licencia Usuario (${u.name || u.username})`,
+              maxSeats: 1,
+              expiresAt: null,
+              status: 'active',
+              createdAt: u.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              createdBy: 'admin'
+            });
+          }
+        }
+      });
+    }
 
     const mergedKeys = Array.from(keyMap.values());
     const mergedDevices = Array.from(devMap.values());
@@ -8288,17 +8397,26 @@
     await fetchAndMergeLocalServerLicenses();
     if(!firestoreDb) return licenseData;
     try {
-      const snap = await Promise.race([
-        firestoreDb.collection('pti_users').doc('__system_licenses__').get(),
+      const [snapUserDoc, snapPlantDoc] = await Promise.race([
+        Promise.all([
+          firestoreDb.collection('pti_users').doc('__system_licenses__').get().catch(() => null),
+          firestoreDb.collection('pti_plant').doc('licenses').get().catch(() => null)
+        ]),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1800))
       ]);
-      if(snap && snap.exists){
-        const docData = snap.data();
+      if(snapUserDoc && snapUserDoc.exists){
+        const docData = snapUserDoc.data();
         if(docData && docData.preferences){
           licenseData = mergeLicenseData(licenseData, docData.preferences);
-          saveSystemLicensesLocal(licenseData);
         }
       }
+      if(snapPlantDoc && snapPlantDoc.exists){
+        const pData = snapPlantDoc.data();
+        if(pData && (Array.isArray(pData.keys) || Array.isArray(pData.devices))){
+          licenseData = mergeLicenseData(licenseData, pData);
+        }
+      }
+      saveSystemLicensesLocal(licenseData);
     } catch(e){}
     return licenseData;
   }
@@ -8334,6 +8452,38 @@
       }
     }
     return keyObj;
+  }
+
+  function ensureMasterAdminDeviceRegistered(){
+    if(!currentMachineInfo || !currentMachineInfo.machineId) return;
+    if(!isMasterAdminUser(currentUser)) return;
+    const hwId = normalizeLicenseKey(currentMachineInfo.machineId);
+    const wasExplicitlyDeleted = Array.isArray(licenseData.deletedDeviceIds) &&
+      licenseData.deletedDeviceIds.some(id => isSameLicenseKey(id, hwId));
+    if(wasExplicitlyDeleted) return;
+
+    if(!Array.isArray(licenseData.devices)) licenseData.devices = [];
+    const existing = licenseData.devices.find(d => d && isSameLicenseKey(d.machineId, hwId));
+    if(!existing){
+      const nowIso = new Date().toISOString();
+      ensureLicenseKeyExists(DEFAULT_MASTER_KEY, 'Licencia Principal Planta AGV', Math.max(5, parseInt(licenseData.maxDevices, 10) || 5));
+      licenseData.devices.unshift({
+        machineId: hwId,
+        hostname: currentMachineInfo.hostname || 'Estación Principal',
+        osUser: currentMachineInfo.osUser || 'Administrador',
+        platform: currentMachineInfo.platform || 'Windows / Web',
+        licenseKey: DEFAULT_MASTER_KEY,
+        label: currentMachineInfo.hostname || 'Estación Principal Admin',
+        activatedBy: 'admin',
+        activatedAt: nowIso,
+        lastSeenAt: nowIso,
+        currentUser: 'admin',
+        status: 'active'
+      });
+      licenseData.updatedAt = nowIso;
+      saveSystemLicensesLocal(licenseData);
+      pushSystemLicenses();
+    }
   }
 
   async function detectMachineIdentity(){
@@ -8392,16 +8542,6 @@
 
   function evaluateCurrentDeviceLicense(data = licenseData){
     const hwId = currentMachineInfo.machineId;
-
-    // Limpiar cualquier auto-registro previo que no haya sido activado explícitamente con clave
-    if(Array.isArray(data.devices)){
-      const hadAuto = data.devices.some(d => d && d.label === 'Estación Principal (Auto-Registrada)');
-      if(hadAuto){
-        data.devices = data.devices.filter(d => d && d.label !== 'Estación Principal (Auto-Registrada)');
-        saveSystemLicensesLocal(data);
-      }
-    }
-
     const dev = (data.devices || []).find(d => d && isSameLicenseKey(d.machineId, hwId));
     if(!dev){
       return {
@@ -8832,18 +8972,40 @@
     // Mostrar el panel de gestión de licencias ÚNICAMENTE al usuario "admin"
     const isMasterAdmin = isMasterAdminUser(currentUser);
     card.style.display = isMasterAdmin ? '' : 'none';
-    if(!isMasterAdmin) return;
+
+    // Asegurar que si "admin" está activo, su equipo y todas las claves de usuarios activos estén sincronizadas en licenseData
+    if(isMasterAdmin){
+      ensureMasterAdminDeviceRegistered();
+    }
+    licenseData = mergeLicenseData(createDefaultLicenseData(), licenseData);
 
     const activeCount = getActiveDevicesCount(licenseData);
     const maxDev = Math.max(1, parseInt(licenseData.maxDevices, 10) || 5);
     const freeSeats = Math.max(0, maxDev - activeCount);
     const pct = Math.min(100, Math.round((activeCount / maxDev) * 100));
 
+    const totalUsersCount = Array.isArray(usersDb) ? usersDb.length : 0;
+    const licensedUsersCount = Array.isArray(usersDb)
+      ? usersDb.filter(u => u && (String(u.username || '').toLowerCase() === 'admin' || u.hasLicense !== false)).length
+      : 0;
+
     if($('lbl-lic-quota-pill')){
       $('lbl-lic-quota-pill').textContent = `${activeCount} / ${maxDev} Equipos Activos`;
       $('lbl-lic-quota-pill').style.background = freeSeats > 0 ? '#ecfdf5' : '#fef2f2';
       $('lbl-lic-quota-pill').style.color = freeSeats > 0 ? '#059669' : '#dc2626';
       $('lbl-lic-quota-pill').style.borderColor = freeSeats > 0 ? '#a7f3d0' : '#fecaca';
+    }
+    if($('lbl-lic-users-active-pill')){
+      $('lbl-lic-users-active-pill').textContent = `${licensedUsersCount} / ${totalUsersCount} Usuarios con Licencia`;
+    }
+    if($('lbl-lic-users-table-pill')){
+      $('lbl-lic-users-table-pill').textContent = `${licensedUsersCount} de ${totalUsersCount} Activos`;
+    }
+    if($('lbl-lic-devices-count')){
+      $('lbl-lic-devices-count').textContent = `${activeCount} Equipo${activeCount === 1 ? '' : 's'} Activo${activeCount === 1 ? '' : 's'}`;
+      $('lbl-lic-devices-count').style.background = activeCount > 0 ? '#ecfdf5' : '#fffbeb';
+      $('lbl-lic-devices-count').style.color = activeCount > 0 ? '#059669' : '#b45309';
+      $('lbl-lic-devices-count').style.borderColor = activeCount > 0 ? '#a7f3d0' : '#fde68a';
     }
     if($('lbl-lic-active-big')) $('lbl-lic-active-big').textContent = String(activeCount);
     if($('lbl-lic-max-big')) $('lbl-lic-max-big').textContent = String(maxDev);
@@ -8892,7 +9054,8 @@
     if(tbodyKeys){
       tbodyKeys.innerHTML = '';
       const keys = Array.isArray(licenseData.keys) ? licenseData.keys : [];
-      if($('lbl-lic-keys-count')) $('lbl-lic-keys-count').textContent = `${keys.length} Clave${keys.length === 1 ? '' : 's'}`;
+      const activeKeysCount = keys.filter(k => k && k.status === 'active' && !isKeyExpired(k)).length;
+      if($('lbl-lic-keys-count')) $('lbl-lic-keys-count').textContent = `${activeKeysCount} Clave${activeKeysCount === 1 ? '' : 's'} Activa${activeKeysCount === 1 ? '' : 's'} (${keys.length} Total)`;
 
       const currentDev = (licenseData.devices || []).find(d => d && isSameLicenseKey(d.machineId, currentMachineInfo.machineId) && d.status === 'active');
 
@@ -8903,6 +9066,23 @@
         const expired = isKeyExpired(k);
         const isActive = k.status === 'active' && !expired;
         const isUsedOnThisPc = currentDev && isSameLicenseKey(currentDev.licenseKey, k.key);
+
+        // Equipos activos y usuarios vinculados a esta clave
+        const activeDevsForKey = (licenseData.devices || []).filter(d => d && d.status === 'active' && isSameLicenseKey(d.licenseKey, k.key));
+        const activeUsersForKey = (Array.isArray(usersDb) ? usersDb : []).filter(u =>
+          u && (String(u.username || '').toLowerCase() === 'admin' || u.hasLicense !== false) &&
+          isSameLicenseKey(u.licenseKey || DEFAULT_MASTER_KEY, k.key)
+        );
+
+        const devBadges = activeDevsForKey.map(d =>
+          `<span class="pill" style="background:#dcfce7;color:#166534;border-color:#86efac;font-size:10.5px;padding:1px 6px;">🖥️ ${escapeHtml(d.label || d.hostname || d.machineId)} (${escapeHtml(d.machineId)})</span>`
+        );
+        const usrBadges = activeUsersForKey.map(u =>
+          `<span class="pill" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe;font-size:10.5px;padding:1px 6px;">👤 ${escapeHtml(u.username)}</span>`
+        );
+        const assignedSummaryHtml = (devBadges.length > 0 || usrBadges.length > 0)
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${devBadges.concat(usrBadges).join('')}</div>`
+          : `<span style="font-size:11px;color:var(--ink-dim);">Sin equipos asignados aún</span>`;
 
         const statusBadge = isActive
           ? `<span class="status-dot active"></span><b style="color:var(--green-bright);font-size:11.5px;">Activa</b>`
@@ -8918,6 +9098,7 @@
             </div>
           </td>
           <td><b>${escapeHtml(k.label || 'Licencia Operativa')}</b></td>
+          <td>${assignedSummaryHtml}</td>
           <td style="text-align:center;">
             <span class="pill" style="font-family:var(--mono);font-weight:800;${used >= maxS ? 'background:#fef3c7;color:#b45309;border-color:#fde68a;' : 'background:#ecfdf5;color:#059669;border-color:#a7f3d0;'}">${used} / ${maxS}</span>
           </td>
@@ -9009,7 +9190,7 @@
       tbodyDevs.innerHTML = '';
       const devs = Array.isArray(licenseData.devices) ? licenseData.devices : [];
       if(devs.length === 0){
-        tbodyDevs.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-dim);padding:16px;">No hay equipos registrados todavía. Haz clic en <b>"⚡ Activar Este PC Ahora"</b> o en <b>"🖥️ Usar en Este PC"</b> sobre cualquier clave.</td></tr>`;
+        tbodyDevs.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-dim);padding:16px;">No hay equipos registrados todavía. Haz clic en <b>"⚡ Activar Este PC"</b> o en <b>"🖥️ Usar en Este PC"</b> sobre cualquier clave.</td></tr>`;
       } else {
         devs.forEach(d => {
           const tr = document.createElement('tr');
@@ -9025,8 +9206,8 @@
           }
 
           const statusHtml = isActive
-            ? `<span class="status-dot active"></span><b style="color:var(--green-bright);font-size:11.5px;">Activo (Con Cupo)</b>`
-            : `<span class="status-dot inactive"></span><b style="color:var(--red);font-size:11.5px;">Bloqueado / Sin Cupo</b>`;
+            ? `<span class="status-dot active"></span><b style="color:var(--green-bright);font-size:11.5px;">🟢 Licencia Activa (Con Cupo)</b>`
+            : `<span class="status-dot inactive"></span><b style="color:var(--red);font-size:11.5px;">🔴 Bloqueado / Sin Cupo</b>`;
 
           tr.innerHTML = `
             <td>
@@ -9039,7 +9220,7 @@
               <b>${escapeHtml(d.label || d.hostname || 'Estación')}</b>
               <div style="font-size:10.5px;color:var(--ink-dim);">${escapeHtml(d.hostname || '')} · ${escapeHtml(d.platform || 'Windows')}</div>
             </td>
-            <td><code style="font-family:var(--mono);font-size:11px;color:#0369a1;">${escapeHtml(d.licenseKey || DEFAULT_MASTER_KEY)}</code></td>
+            <td><code style="font-family:var(--mono);font-size:11px;color:#0369a1;font-weight:700;">${escapeHtml(d.licenseKey || DEFAULT_MASTER_KEY)}</code></td>
             <td style="font-size:11.5px;">
               <b>👤 ${escapeHtml(d.currentUser || d.activatedBy || 'operador')}</b>
             </td>
@@ -9099,10 +9280,91 @@
         });
       }
     }
+
+    // Renderizar Tabla Resumen de Licencias Operativas por Usuario
+    const tbodyUsersLic = $('tbody-lic-users-summary');
+    if(tbodyUsersLic){
+      tbodyUsersLic.innerHTML = '';
+      const allUsers = Array.isArray(usersDb) ? usersDb : [];
+      const activeKeysList = (licenseData.keys || []).filter(k => k && k.status === 'active' && !isKeyExpired(k));
+
+      allUsers.forEach(u => {
+        if(!u) return;
+        const tr = document.createElement('tr');
+        const isMaster = String(u.username || '').trim().toLowerCase() === 'admin';
+        const uLicensed = isMaster ? true : (u.hasLicense !== false);
+        const uKeyCode = normalizeLicenseKey(u.licenseKey || DEFAULT_MASTER_KEY);
+
+        const keySelectOptions = activeKeysList.map(k =>
+          `<option value="${escapeHtml(k.key)}" ${isSameLicenseKey(k.key, uKeyCode) ? 'selected' : ''}>${escapeHtml(k.key)} (${escapeHtml(k.label || 'Activa')})</option>`
+        ).join('');
+
+        tr.innerHTML = `
+          <td style="font-family:var(--mono);font-weight:700;">${escapeHtml(u.username)}</td>
+          <td><b>${escapeHtml(u.name || u.username)}</b></td>
+          <td><span class="pill" style="font-size:11px;">${escapeHtml(u.role || 'Operador')}</span></td>
+          <td>
+            <select class="sel-user-lic-key-quick" data-uid="${escapeHtml(u.id)}" style="height:28px;font-family:var(--mono);font-size:11px;padding:2px 6px;max-width:240px;" ${!uLicensed ? 'disabled' : ''}>
+              ${keySelectOptions}
+            </select>
+          </td>
+          <td>
+            ${uLicensed
+              ? `<span class="pill" style="background:#ecfdf5;color:#059669;border-color:#a7f3d0;font-weight:800;font-size:11px;">🔑 Licencia Activa</span>`
+              : `<span class="pill" style="background:#fef2f2;color:#dc2626;border-color:#fecaca;font-weight:800;font-size:11px;">🔒 Sin Licencia (Restringido)</span>`}
+          </td>
+          <td style="text-align:center;">
+            ${isMaster
+              ? `<span style="font-size:11px;color:#059669;font-weight:700;">🛡️ Licencia Maestra Permanente</span>`
+              : `<button type="button" class="btn small ghost btn-quick-toggle-user-lic" data-uid="${escapeHtml(u.id)}" style="padding:3px 9px;font-size:11px;${uLicensed ? 'color:#dc2626;border-color:#fecaca;background:#fef2f2;' : 'color:#059669;border-color:#a7f3d0;background:#ecfdf5;'}">
+                   ${uLicensed ? '🔒 Quitar Licencia' : '🔑 Activar Licencia'}
+                 </button>`}
+          </td>
+        `;
+        tbodyUsersLic.appendChild(tr);
+      });
+
+      tbodyUsersLic.querySelectorAll('.sel-user-lic-key-quick').forEach(sel => {
+        sel.addEventListener('change', () => {
+          if(!isMasterAdminUser(currentUser)) return;
+          const u = (usersDb || []).find(x => x.id === sel.dataset.uid);
+          if(!u) return;
+          u.licenseKey = normalizeLicenseKey(sel.value || DEFAULT_MASTER_KEY);
+          ensureLicenseKeyExists(u.licenseKey, `Licencia Usuario ${u.username}`);
+          saveUsers(usersDb);
+          saveSystemLicensesLocal(licenseData);
+          pushSystemLicenses();
+          renderUsersTable();
+          renderLicenseAdminUI();
+        });
+      });
+
+      tbodyUsersLic.querySelectorAll('.btn-quick-toggle-user-lic').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if(!isMasterAdminUser(currentUser)) return;
+          const u = (usersDb || []).find(x => x.id === btn.dataset.uid);
+          if(!u || String(u.username || '').toLowerCase() === 'admin') return;
+          const curLic = (u.hasLicense !== false);
+          u.hasLicense = !curLic;
+          u.licenseRevokedByAdmin = !u.hasLicense;
+          if(u.hasLicense && !u.licenseKey) u.licenseKey = DEFAULT_MASTER_KEY;
+          saveUsers(usersDb);
+          renderUsersTable();
+          renderLicenseAdminUI();
+          if(currentUser && currentUser.id === u.id){
+            applyUserPermissions(u);
+            enforceDeviceLicenseGate();
+          }
+        });
+      });
+    }
   }
+
+  let systemLicensePlantUnsub = null;
 
   function listenToSystemLicenses(){
     if(systemLicenseUnsub) { systemLicenseUnsub(); systemLicenseUnsub = null; }
+    if(systemLicensePlantUnsub) { systemLicensePlantUnsub(); systemLicensePlantUnsub = null; }
     if(!firestoreDb) return;
 
     systemLicenseUnsub = firestoreDb.collection('pti_users').doc('__system_licenses__').onSnapshot(snapshot => {
@@ -9112,8 +9374,6 @@
       }
       const docData = snapshot.data();
       if(!docData || !docData.preferences) return;
-      if(docData.lastClientId === CLIENT_SESSION_ID) return;
-
       const remoteLic = docData.preferences;
       if(remoteLic && typeof remoteLic === 'object'){
         licenseData = mergeLicenseData(licenseData, remoteLic);
@@ -9123,6 +9383,16 @@
     }, err => {
       console.warn('Error en listener de licencias en tiempo real:', err);
     });
+
+    systemLicensePlantUnsub = firestoreDb.collection('pti_plant').doc('licenses').onSnapshot(snapshot => {
+      if(!snapshot.exists) return;
+      const pData = snapshot.data();
+      if(pData && (Array.isArray(pData.keys) || Array.isArray(pData.devices))){
+        licenseData = mergeLicenseData(licenseData, pData);
+        saveSystemLicensesLocal(licenseData);
+        enforceDeviceLicenseGate();
+      }
+    }, () => {});
   }
 
   function pushSystemLicenses(){
@@ -9131,22 +9401,33 @@
     if(!firestoreDb) return;
     const uKey = getCurrentUsernameKey();
     const updatedByUser = (uKey && uKey !== 'guest') ? uKey : 'admin';
+    const cleanPayload = {
+      maxDevices: Math.max(1, parseInt(licenseData.maxDevices, 10) || 5),
+      updatedAt: licenseData.updatedAt || new Date().toISOString(),
+      deletedKeyCodes: licenseData.deletedKeyCodes || [],
+      deletedDeviceIds: licenseData.deletedDeviceIds || [],
+      keys: licenseData.keys || [],
+      devices: licenseData.devices || []
+    };
     firestoreDb.collection('pti_users').doc('__system_licenses__').set({
       username: '__system_licenses__',
-      preferences: {
-        maxDevices: Math.max(1, parseInt(licenseData.maxDevices, 10) || 5),
-        updatedAt: licenseData.updatedAt || new Date().toISOString(),
-        deletedKeyCodes: licenseData.deletedKeyCodes || [],
-        deletedDeviceIds: licenseData.deletedDeviceIds || [],
-        keys: licenseData.keys || [],
-        devices: licenseData.devices || []
-      },
+      preferences: cleanPayload,
       updatedBy: updatedByUser,
       updatedAt: new Date().toISOString(),
       lastClientId: CLIENT_SESSION_ID
     }).catch(err => {
-      console.warn('Error sincronizando licencias en Firestore:', err);
+      console.warn('Error sincronizando licencias en pti_users:', err);
     });
+
+    firestoreDb.collection('pti_plant').doc('licenses').set({
+      maxDevices: cleanPayload.maxDevices,
+      keys: cleanPayload.keys,
+      devices: cleanPayload.devices,
+      version: Date.now(),
+      updatedBy: updatedByUser,
+      updatedAt: new Date().toISOString(),
+      lastClientId: CLIENT_SESSION_ID
+    }).catch(() => {});
   }
 
   function bindLicenseSystemEvents(){
@@ -9494,10 +9775,16 @@
   async function initLicenseSystem(){
     // 1. Enlazar todos los eventos del sistema de licencias de inmediato (sin esperar red)
     bindLicenseSystemEvents();
+    if(isMasterAdminUser(currentUser)){
+      ensureMasterAdminDeviceRegistered();
+    }
     enforceDeviceLicenseGate();
     // 2. Obtener Hardware ID real (si corre desde el .exe local) y sincronizar licencias locales/remotas
     await detectMachineIdentity();
-    await fetchAndMergeLocalServerLicenses();
+    await fetchAndMergeRemoteLicensesOnce();
+    if(isMasterAdminUser(currentUser)){
+      ensureMasterAdminDeviceRegistered();
+    }
     updateHeartbeatForCurrentDevice();
     enforceDeviceLicenseGate();
     if(firestoreDb){
@@ -13691,22 +13978,22 @@ ${qtyCmd}
     applyBranding(currentBranding);
     bindBrandingEvents();
 
-    // Inicializar Sincronización en Tiempo Real Multiplataforma Cloud Firestore
-    initCloudSync();
-    // Clear any past mobile preference
-    try { localStorage.removeItem('pti_mobile_ui_pref'); } catch(e){}
-    // Sistema de Licencias por Clave de Activación + Límite de Cupos
-    initLicenseSystem();
-
-    // Authentication & Permissions System
+    // Authentication & Permissions System (inicializar sesión antes del sistema de licencias para que currentUser esté definido)
     bindAuthEvents();
-    renderUsersTable();
     const session = getActiveSession();
     if(session){
       applyUserPermissions(session);
     } else {
       applyUserPermissions(null);
     }
+    renderUsersTable();
+
+    // Inicializar Sincronización en Tiempo Real Multiplataforma Cloud Firestore
+    initCloudSync();
+    // Clear any past mobile preference
+    try { localStorage.removeItem('pti_mobile_ui_pref'); } catch(e){}
+    // Sistema de Licencias por Clave de Activación + Límite de Cupos
+    initLicenseSystem();
 
     // Modo Celular (Estación Compacta) Initialization
     bindMobileEvents();
